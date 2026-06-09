@@ -4,7 +4,52 @@
 
 从具体出错的 prompt、assistant message、tool call 或 tool result 恢复 Codex 运行，而不是重启整个长任务。
 
-`codex-timewarp` 是一个 Codex 插件 marketplace 仓库，里面包含 `timewarp` 插件。它是一个 TypeScript/Node MVP，用来检查 Codex session transcript，并生成安全的恢复 prompt。
+`codex-timewarp` 是一个 Codex 插件 marketplace 仓库，里面包含 `timewarp` 插件。它会检查本地 Codex session transcript，帮你定位出错事件，并生成安全的 transcript-only 恢复 prompt。
+
+## 推荐默认流程
+
+如果你想在 Codex 里获得默认 Timewarp 体验，从这里开始：
+
+```sh
+codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
+codex plugin add timewarp@codex-timewarp
+```
+
+重启 Codex，让 plugin skills 和 hooks 重新加载，然后在 Codex 里说：
+
+```text
+Use timewarp to show the latest timeline and focus on tool-related events.
+```
+
+如果仓库是 public，并且你的环境可以通过 HTTPS clone GitHub，也可以用简写形式：
+
+```sh
+codex plugin marketplace add pinksky13/codex-timewarp --ref main
+codex plugin add timewarp@codex-timewarp
+```
+
+正常使用不需要 clone 这个仓库。只有开发 Timewarp，或者手动跑本地 CLI 时，才需要 clone。
+
+## 一个简单心智模型
+
+Timewarp 不替代 Codex。
+
+它是在 Codex session transcript 外面加了一层检查和恢复能力：
+
+- Codex 执行任务，并写入 JSONL session。
+- Timewarp 读取本地 session 时间线。
+- 你检查具体出错的 prompt、assistant message、tool call 或 tool result。
+- Timewarp 生成继续用的恢复 prompt，或者记录手动修正的工具结果。
+
+Timewarp 不会恢复工作区文件，不会改写原始 session 文件，也不会自动重跑有副作用的工具。
+
+## 新用户从这里开始
+
+1. 按上面的推荐默认流程安装插件。
+2. 重启 Codex。
+3. 让 Codex 使用 `timewarp` 展示最新工具相关时间线。
+4. 先 inspect 可疑事件 ID，再决定恢复动作。
+5. 从选定事件之前或之后生成恢复 prompt。
 
 ## 解决什么问题
 
@@ -30,61 +75,19 @@
 - 生成 transcript-only 恢复 prompt。
 - 把手动修正的工具结果写入 `$CODEX_HOME/timewarp/overrides/`。
 
-Timewarp 不会改写原始 session 文件，不会恢复工作区文件，也不会自动重跑有副作用的工具。
+## 推荐工作流
 
-## 仓库结构
+安装插件的用户可以让 Codex 执行这些 Timewarp 动作；本地开发用户可以用 `npm run timewarp -- ...` 运行同样的动作。
 
-```text
-.agents/plugins/marketplace.json
-package.json
-README.md
-README.zh-CN.md
-plugins/timewarp/
-  .codex-plugin/plugin.json
-  skills/timewarp/SKILL.md
-  bin/timewarp.ts
-  hooks/hooks.json
-  hooks/timewarp-hook.ts
-  src/
-  test/
-```
+1. 运行 `show --latest --tools-only` 找到可疑事件。
+2. 对可疑 prompt、调用或结果运行 `inspect <event-id>`。
+3. 如果要从某个 transcript 边界继续，运行 `prompt --before <event-id>` 或 `prompt --after <event-id>`。
+4. 如果某个工具结果错误或不完整，运行 `override <event-id> --replacement ...`。
+5. 把生成的恢复 prompt 交给 Codex 使用。
 
-仓库根目录就是 marketplace 根目录。`plugins/timewarp/` 是插件根目录。
+## 开发
 
-## 作为 Codex 插件安装（用户推荐）
-
-如果你想在 Codex 里直接使用 Timewarp，应该走这条路径。它会把这个仓库注册成 Codex marketplace，并把 `timewarp` 插件安装到你的 Codex 环境里。不需要 clone 这个仓库。
-
-使用 SSH 从 GitHub 安装。私有仓库，或者本机已经配置 GitHub SSH key 时，优先用这种方式：
-
-```sh
-codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
-codex plugin add timewarp@codex-timewarp
-```
-
-然后重启 Codex，让 plugin skills 和 hooks 重新加载。
-
-如果仓库是 public，并且你的环境可以通过 HTTPS clone GitHub，也可以用简写形式：
-
-```sh
-codex plugin marketplace add pinksky13/codex-timewarp --ref main
-codex plugin add timewarp@codex-timewarp
-```
-
-如果只想测试安装流程，不想修改真实 Codex 配置：
-
-```sh
-mkdir -p /tmp/timewarp-codex-home
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@codex-timewarp
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewarp
-```
-
-## 本地 CLI 快速开始（开发/调试）
-
-如果你要开发 Timewarp、测试改动，或者从 clone 下来的仓库里手动跑 CLI，才走这条路径。它不会把插件安装到 Codex 里。
-
-clone 仓库后，在仓库根目录运行：
+只有开发 Timewarp，或者手动跑 CLI 时，才 clone 仓库：
 
 ```sh
 git clone git@github.com:pinksky13/codex-timewarp.git
@@ -95,7 +98,9 @@ npm run timewarp -- show --latest --tools-only --limit 20
 
 `npm run check` 会运行语法检查和测试。`npm run timewarp -- show ...` 会展示最新 Codex session 里最近的工具相关事件。
 
-## 本地 CLI 命令
+## 本地 CLI 参考
+
+这些命令用于 clone 下来的仓库。安装插件的普通用户通常应该让 Codex 使用 `timewarp`，而不是自己手动跑 `npm`。
 
 查看最新时间线：
 
@@ -140,29 +145,16 @@ npm run timewarp -- show --latest --tools-only --json
 npm run timewarp -- inspect E528 --latest --json
 ```
 
-## 在 Codex 中使用
+## 安装验证
 
-这个 MVP 不假设 Codex 已支持插件注册原生 slash command。插件提供的是 `timewarp` skill 和 CLI。
+如果只想测试安装流程，不想修改真实 Codex 配置：
 
-安装插件后，在 Codex 里可以这样说：
-
-```text
-Use timewarp to show the latest timeline and focus on tool-related events.
+```sh
+mkdir -p /tmp/timewarp-codex-home
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@codex-timewarp
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewarp
 ```
-
-或者让 Codex 直接运行 CLI：
-
-```text
-Run: npm run timewarp -- show --latest --tools-only --limit 20
-```
-
-## 推荐工作流
-
-1. 运行 `show --latest --tools-only` 找到可疑事件。
-2. 对可疑 prompt、调用或结果运行 `inspect <event-id>`。
-3. 如果要从某个 transcript 边界继续，运行 `prompt --before <event-id>` 或 `prompt --after <event-id>`。
-4. 如果某个工具结果错误或不完整，运行 `override <event-id> --replacement ...`。
-5. 把生成的恢复 prompt 交给 Codex 使用。
 
 ## 最佳实践
 
@@ -193,6 +185,25 @@ $CODEX_HOME/timewarp/overrides/<session_id>.jsonl
 - 不自动重跑有副作用的工具。
 - 不保证已经注册原生 `/timewarp` slash command。
 - 不支持外部副作用回滚。
+
+## 仓库结构
+
+```text
+.agents/plugins/marketplace.json
+package.json
+README.md
+README.zh-CN.md
+plugins/timewarp/
+  .codex-plugin/plugin.json
+  skills/timewarp/SKILL.md
+  bin/timewarp.ts
+  hooks/hooks.json
+  hooks/timewarp-hook.ts
+  src/
+  test/
+```
+
+仓库根目录就是 marketplace 根目录。`plugins/timewarp/` 是插件根目录。
 
 ## License
 

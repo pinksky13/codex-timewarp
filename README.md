@@ -4,7 +4,52 @@
 
 Recover Codex runs from the exact bad prompt, assistant message, tool call, or tool result instead of restarting the whole task.
 
-`codex-timewarp` is a Codex plugin marketplace repository for the `timewarp` plugin, a TypeScript/Node MVP for inspecting Codex session transcripts and generating safe recovery prompts.
+`codex-timewarp` is a Codex plugin marketplace repository for the `timewarp` plugin. It inspects local Codex session transcripts, helps you find the bad event, and generates safe transcript-only recovery prompts.
+
+## Recommended Default Flow
+
+If you want the default Timewarp experience inside Codex, start here:
+
+```sh
+codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
+codex plugin add timewarp@codex-timewarp
+```
+
+Restart Codex so plugin skills and hooks are reloaded, then ask:
+
+```text
+Use timewarp to show the latest timeline and focus on tool-related events.
+```
+
+If the repository is public and your environment can clone from GitHub over HTTPS, the shorthand form also works:
+
+```sh
+codex plugin marketplace add pinksky13/codex-timewarp --ref main
+codex plugin add timewarp@codex-timewarp
+```
+
+Do not clone this repository for normal use. Clone it only if you want to develop Timewarp or manually run the local CLI.
+
+## A Simple Mental Model
+
+Timewarp does not replace Codex.
+
+It adds an inspection and recovery layer around Codex session transcripts:
+
+- Codex runs the task and writes JSONL sessions.
+- Timewarp reads the local session timeline.
+- You inspect the exact prompt, assistant message, tool call, or tool result that went wrong.
+- Timewarp generates a continuation prompt or records a manual tool-result override.
+
+Timewarp intentionally does not restore workspace files, rewrite original session files, or rerun mutating tools automatically.
+
+## Start Here If You Are New
+
+1. Install the plugin with the recommended flow above.
+2. Restart Codex.
+3. Ask Codex to use `timewarp` and show the latest tool-related timeline.
+4. Inspect the suspicious event ID before choosing a recovery action.
+5. Generate a recovery prompt from before or after the chosen event.
 
 ## What It Solves
 
@@ -30,61 +75,19 @@ Restarting the whole task wastes context and time. Timewarp lets you inspect the
 - Generate transcript-only recovery prompts.
 - Store manual tool-result overrides under `$CODEX_HOME/timewarp/overrides/`.
 
-Timewarp intentionally does not rewrite original session files, restore workspace files, or rerun mutating tools automatically.
+## Recommended Workflow
 
-## Repository Layout
+Installed plugin users can ask Codex to perform these Timewarp actions; local development users can run the same actions with `npm run timewarp -- ...`.
 
-```text
-.agents/plugins/marketplace.json
-package.json
-README.md
-README.zh-CN.md
-plugins/timewarp/
-  .codex-plugin/plugin.json
-  skills/timewarp/SKILL.md
-  bin/timewarp.ts
-  hooks/hooks.json
-  hooks/timewarp-hook.ts
-  src/
-  test/
-```
+1. Run `show --latest --tools-only` to locate suspicious events.
+2. Run `inspect <event-id>` on the suspected prompt, call, or result.
+3. If the transcript should continue from a boundary, run `prompt --before <event-id>` or `prompt --after <event-id>`.
+4. If a tool result was wrong or incomplete, run `override <event-id> --replacement ...`.
+5. Use the generated recovery prompt in Codex.
 
-The repository root is the marketplace root. `plugins/timewarp/` is the plugin root.
+## Development
 
-## Install As A Codex Plugin (Recommended For Users)
-
-Use this path if you want Timewarp available inside Codex. It registers this repository as a Codex marketplace and installs the `timewarp` plugin into your Codex environment. You do not need to clone this repository.
-
-Install from GitHub with SSH. This is the safest option for private repositories or setups that already use GitHub SSH keys:
-
-```sh
-codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
-codex plugin add timewarp@codex-timewarp
-```
-
-Then restart Codex so plugin skills and hooks are reloaded.
-
-If the repository is public and your environment can clone from GitHub over HTTPS, the shorthand form also works:
-
-```sh
-codex plugin marketplace add pinksky13/codex-timewarp --ref main
-codex plugin add timewarp@codex-timewarp
-```
-
-To test installation without touching your real Codex config:
-
-```sh
-mkdir -p /tmp/timewarp-codex-home
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@codex-timewarp
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewarp
-```
-
-## Local CLI Quick Start (For Development)
-
-Use this path if you are developing Timewarp, testing a change, or manually running the CLI from a cloned checkout. This does not install the plugin into Codex.
-
-Clone the repository, then run commands from the repository root:
+Clone the repository only when you want to develop Timewarp or run the CLI by hand:
 
 ```sh
 git clone git@github.com:pinksky13/codex-timewarp.git
@@ -95,7 +98,9 @@ npm run timewarp -- show --latest --tools-only --limit 20
 
 `npm run check` runs syntax checks and tests. `npm run timewarp -- show ...` shows recent tool-related events from the latest Codex session.
 
-## Local CLI Commands
+## Local CLI Reference
+
+These commands are for a cloned checkout. Installed plugin users should usually ask Codex to use `timewarp` instead of running `npm` manually.
 
 Show the latest timeline:
 
@@ -140,29 +145,16 @@ npm run timewarp -- show --latest --tools-only --json
 npm run timewarp -- inspect E528 --latest --json
 ```
 
-## Using Inside Codex
+## Install Verification
 
-Native slash-command registration is not assumed in this MVP. The plugin exposes a `timewarp` skill and a CLI.
+To test installation without touching your real Codex config:
 
-After installing the plugin, ask Codex:
-
-```text
-Use timewarp to show the latest timeline and focus on tool-related events.
+```sh
+mkdir -p /tmp/timewarp-codex-home
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@codex-timewarp
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewarp
 ```
-
-Or ask Codex to run the CLI directly:
-
-```text
-Run: npm run timewarp -- show --latest --tools-only --limit 20
-```
-
-## Recommended Workflow
-
-1. Run `show --latest --tools-only` to locate suspicious events.
-2. Run `inspect <event-id>` on the suspected prompt, call, or result.
-3. If the transcript should continue from a boundary, run `prompt --before <event-id>` or `prompt --after <event-id>`.
-4. If a tool result was wrong or incomplete, run `override <event-id> --replacement ...`.
-5. Use the generated recovery prompt in Codex.
 
 ## Best Practices
 
@@ -193,6 +185,25 @@ The original files under `~/.codex/sessions/**/rollout-*.jsonl` are never modifi
 - No automatic rerun of mutating tools.
 - No native `/timewarp` slash command registration guarantee.
 - No external side-effect rollback.
+
+## Repository Layout
+
+```text
+.agents/plugins/marketplace.json
+package.json
+README.md
+README.zh-CN.md
+plugins/timewarp/
+  .codex-plugin/plugin.json
+  skills/timewarp/SKILL.md
+  bin/timewarp.ts
+  hooks/hooks.json
+  hooks/timewarp-hook.ts
+  src/
+  test/
+```
+
+The repository root is the marketplace root. `plugins/timewarp/` is the plugin root.
 
 ## License
 
