@@ -10,6 +10,8 @@ Recover Codex runs from the exact bad prompt, assistant message, tool call, or t
 
 If you want the default Timewarp experience inside Codex, start here:
 
+Timewarp is currently distributed as a Codex plugin marketplace, not as an npm package. The install command registers the GitHub repository with Codex and then installs the plugin from that marketplace.
+
 ```sh
 codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
 codex plugin add timewarp@codex-timewarp

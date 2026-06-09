@@ -10,6 +10,8 @@
 
 如果你想在 Codex 里获得默认 Timewarp 体验，从这里开始：
 
+Timewarp 当前是以 Codex plugin marketplace 的形式分发，不是 npm package。下面的安装命令会把 GitHub 仓库注册到 Codex，然后从这个 marketplace 安装插件。
+
 ```sh
 codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
 codex plugin add timewarp@codex-timewarp
