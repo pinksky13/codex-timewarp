@@ -10,11 +10,11 @@
 
 如果你想在 Codex 里获得默认 Timewarp 体验，从这里开始：
 
-Timewarp 当前是以 Codex plugin marketplace 的形式分发，不是 npm package。下面的安装命令会把 GitHub 仓库注册到 Codex，然后从这个 marketplace 安装插件。
+先安装 npm 入口，再让它注册并安装 Codex 插件：
 
 ```sh
-codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
-codex plugin add timewarp@codex-timewarp
+npm install -g codex-timewarp
+codex-timewarp install
 ```
 
 重启 Codex，让 plugin skills 和 hooks 重新加载，然后在 Codex 里说：
@@ -23,11 +23,18 @@ codex plugin add timewarp@codex-timewarp
 Use timewarp to show the latest timeline and focus on tool-related events.
 ```
 
-如果仓库是 public，并且你的环境可以通过 HTTPS clone GitHub，也可以用简写形式：
+如果你不想安装 npm 入口，也可以直接运行 Codex plugin 命令：
 
 ```sh
-codex plugin marketplace add pinksky13/codex-timewarp --ref main
+codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
 codex plugin add timewarp@codex-timewarp
+```
+
+如果仓库是 public，并且你的环境可以通过 HTTPS clone GitHub，npm 和直接安装都支持 HTTPS 简写：
+
+```sh
+codex-timewarp install --https
+codex plugin marketplace add pinksky13/codex-timewarp --ref main
 ```
 
 正常使用不需要 clone 这个仓库。只有开发 Timewarp，或者手动跑本地 CLI 时，才需要 clone。
@@ -153,8 +160,7 @@ npm run timewarp -- inspect E528 --latest --json
 
 ```sh
 mkdir -p /tmp/timewarp-codex-home
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@codex-timewarp
+CODEX_HOME=/tmp/timewarp-codex-home codex-timewarp install
 CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewarp
 ```
 
@@ -192,6 +198,7 @@ $CODEX_HOME/timewarp/overrides/<session_id>.jsonl
 
 ```text
 .agents/plugins/marketplace.json
+bin/codex-timewarp.js
 package.json
 README.md
 README.zh-CN.md

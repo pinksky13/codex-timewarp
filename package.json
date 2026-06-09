@@ -1,13 +1,50 @@
 {
-  "name": "timewarp-marketplace",
+  "name": "codex-timewarp",
   "version": "0.1.0",
-  "private": true,
-  "description": "Codex marketplace wrapper for the Timewarp plugin.",
+  "description": "Install the Codex Timewarp plugin marketplace and inspect Codex recovery timelines.",
   "type": "module",
+  "bin": {
+    "codex-timewarp": "bin/codex-timewarp.js"
+  },
+  "files": [
+    ".agents/plugins/marketplace.json",
+    "bin/",
+    "plugins/timewarp/.codex-plugin/plugin.json",
+    "plugins/timewarp/bin/",
+    "plugins/timewarp/hooks/",
+    "plugins/timewarp/package.json",
+    "plugins/timewarp/skills/",
+    "plugins/timewarp/src/",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
   "scripts": {
     "timewarp": "npm --prefix ./plugins/timewarp run timewarp --",
     "test": "npm --prefix ./plugins/timewarp test",
-    "check": "npm --prefix ./plugins/timewarp run check"
+    "check": "node --check ./bin/codex-timewarp.js && npm --prefix ./plugins/timewarp run check",
+    "prepack": "npm run check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/pinksky13/codex-timewarp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pinksky13/codex-timewarp/issues"
+  },
+  "homepage": "https://github.com/pinksky13/codex-timewarp#readme",
+  "keywords": [
+    "codex",
+    "codex-plugin",
+    "timewarp",
+    "agent",
+    "transcript",
+    "recovery"
+  ],
+  "author": "pinksky13",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0"
   },
   "devDependencies": {}
 }

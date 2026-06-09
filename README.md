@@ -10,11 +10,11 @@ Recover Codex runs from the exact bad prompt, assistant message, tool call, or t
 
 If you want the default Timewarp experience inside Codex, start here:
 
-Timewarp is currently distributed as a Codex plugin marketplace, not as an npm package. The install command registers the GitHub repository with Codex and then installs the plugin from that marketplace.
+Install the npm entrypoint, then let it register and install the Codex plugin:
 
 ```sh
-codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
-codex plugin add timewarp@codex-timewarp
+npm install -g codex-timewarp
+codex-timewarp install
 ```
 
 Restart Codex so plugin skills and hooks are reloaded, then ask:
@@ -23,11 +23,18 @@ Restart Codex so plugin skills and hooks are reloaded, then ask:
 Use timewarp to show the latest timeline and focus on tool-related events.
 ```
 
-If the repository is public and your environment can clone from GitHub over HTTPS, the shorthand form also works:
+If you prefer not to install the npm entrypoint, run the Codex plugin commands directly:
 
 ```sh
-codex plugin marketplace add pinksky13/codex-timewarp --ref main
+codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
 codex plugin add timewarp@codex-timewarp
+```
+
+If the repository is public and your environment can clone from GitHub over HTTPS, both npm and direct install support the HTTPS shorthand:
+
+```sh
+codex-timewarp install --https
+codex plugin marketplace add pinksky13/codex-timewarp --ref main
 ```
 
 Do not clone this repository for normal use. Clone it only if you want to develop Timewarp or manually run the local CLI.
@@ -153,8 +160,7 @@ To test installation without touching your real Codex config:
 
 ```sh
 mkdir -p /tmp/timewarp-codex-home
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@codex-timewarp
+CODEX_HOME=/tmp/timewarp-codex-home codex-timewarp install
 CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewarp
 ```
 
@@ -192,6 +198,7 @@ The original files under `~/.codex/sessions/**/rollout-*.jsonl` are never modifi
 
 ```text
 .agents/plugins/marketplace.json
+bin/codex-timewarp.js
 package.json
 README.md
 README.zh-CN.md
