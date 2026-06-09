@@ -2,7 +2,7 @@
   "name": "timewarp-marketplace",
   "version": "0.1.0",
   "private": true,
-  "description": "Local Codex marketplace wrapper for the Timewarp plugin.",
+  "description": "Codex marketplace wrapper for the Timewarp plugin.",
   "type": "module",
   "scripts": {
     "timewarp": "npm --prefix ./plugins/timewarp run timewarp --",

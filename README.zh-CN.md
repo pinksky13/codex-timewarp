@@ -2,9 +2,9 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-从具体出错的 prompt、message 或 tool call 恢复 Codex 运行，而不是重启整个长任务。
+从具体出错的 prompt、assistant message、tool call 或 tool result 恢复 Codex 运行，而不是重启整个长任务。
 
-`codex-timewarp` 是一个本地 Codex marketplace，里面包含 `timewarp` 插件。它是一个 TypeScript/Node MVP，用来检查 Codex session transcript，并生成安全的恢复 prompt。
+`codex-timewarp` 是一个 Codex 插件 marketplace 仓库，里面包含 `timewarp` 插件。它是一个 TypeScript/Node MVP，用来检查 Codex session transcript，并生成安全的恢复 prompt。
 
 ## 解决什么问题
 
@@ -35,97 +35,105 @@ Timewarp 不会改写原始 session 文件，不会恢复工作区文件，也�
 ## 仓库结构
 
 ```text
-rec/
-  .agents/plugins/marketplace.json
-  package.json
-  README.md
-  README.zh-CN.md
-  plugins/timewarp/
-    .codex-plugin/plugin.json
-    skills/timewarp/SKILL.md
-    bin/timewarp.ts
-    hooks/hooks.json
-    hooks/timewarp-hook.ts
-    src/
-    test/
+.agents/plugins/marketplace.json
+package.json
+README.md
+README.zh-CN.md
+plugins/timewarp/
+  .codex-plugin/plugin.json
+  skills/timewarp/SKILL.md
+  bin/timewarp.ts
+  hooks/hooks.json
+  hooks/timewarp-hook.ts
+  src/
+  test/
 ```
 
-`rec/` 是 marketplace 根目录。`rec/plugins/timewarp/` 是插件根目录。
+仓库根目录就是 marketplace 根目录。`plugins/timewarp/` 是插件根目录。
+
+## 作为 Codex 插件安装
+
+使用 SSH 从 GitHub 安装。私有仓库，或者本机已经配置 GitHub SSH key 时，优先用这种方式：
+
+```sh
+codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
+codex plugin add timewarp@codex-timewarp
+```
+
+然后重启 Codex，让 plugin skills 和 hooks 重新加载。
+
+如果仓库是 public，并且你的环境可以通过 HTTPS clone GitHub，也可以用简写形式：
+
+```sh
+codex plugin marketplace add pinksky13/codex-timewarp --ref main
+codex plugin add timewarp@codex-timewarp
+```
+
+如果只想测试安装流程，不想修改真实 Codex 配置：
+
+```sh
+mkdir -p /tmp/timewarp-codex-home
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@codex-timewarp
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewarp
+```
 
 ## 快速开始
 
-在 `rec/` 的父目录运行：
+clone 仓库后，在仓库根目录运行：
 
 ```sh
-npm --prefix rec run check
-npm --prefix rec run timewarp -- show --latest --tools-only --limit 20
+git clone git@github.com:pinksky13/codex-timewarp.git
+cd codex-timewarp
+npm run check
+npm run timewarp -- show --latest --tools-only --limit 20
 ```
 
-第一条命令运行语法检查和测试。第二条命令展示最新 Codex session 里最近的工具相关事件。
+`npm run check` 会运行语法检查和测试。`npm run timewarp -- show ...` 会展示最新 Codex session 里最近的工具相关事件。
 
 ## 常用命令
 
 查看最新时间线：
 
 ```sh
-npm --prefix rec run timewarp -- show --latest --limit 30
+npm run timewarp -- show --latest --limit 30
 ```
 
 只看工具相关事件：
 
 ```sh
-npm --prefix rec run timewarp -- show --latest --tools-only --limit 30
+npm run timewarp -- show --latest --tools-only --limit 30
 ```
 
 检查单个事件：
 
 ```sh
-npm --prefix rec run timewarp -- inspect E528 --latest
+npm run timewarp -- inspect E528 --latest
 ```
 
 生成“从坏事件之前继续”的恢复 prompt：
 
 ```sh
-npm --prefix rec run timewarp -- prompt --before E528 --latest
+npm run timewarp -- prompt --before E528 --latest
 ```
 
 生成“从某事件之后继续”的恢复 prompt：
 
 ```sh
-npm --prefix rec run timewarp -- prompt --after E528 --latest
+npm run timewarp -- prompt --after E528 --latest
 ```
 
 写入手动修正的工具结果：
 
 ```sh
-npm --prefix rec run timewarp -- override E529 --latest --replacement "Corrected tool output goes here."
+npm run timewarp -- override E529 --latest --replacement "Corrected tool output goes here."
 ```
 
 用于自动化的 JSON 输出：
 
 ```sh
-npm --prefix rec run timewarp -- show --latest --tools-only --json
-npm --prefix rec run timewarp -- inspect E528 --latest --json
-```
-
-## 作为 Codex 插件安装
-
-安装到真实 Codex 环境：
-
-```sh
-codex plugin marketplace add /Users/zhouziyan/intel/learning/rec
-codex plugin add timewarp@timewarp-local
-```
-
-然后重启 Codex，让 plugin skills 和 hooks 重新加载。
-
-如果只想测试安装流程，不想修改真实 Codex 配置：
-
-```sh
-mkdir -p /tmp/timewarp-codex-home
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin marketplace add "$(pwd)/rec"
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@timewarp-local
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace timewarp-local
+npm run timewarp -- show --latest --tools-only --json
+npm run timewarp -- inspect E528 --latest --json
 ```
 
 ## 在 Codex 中使用
@@ -135,13 +143,13 @@ CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace timewarp-loc
 在 Codex 里可以这样说：
 
 ```text
-Use timewarp to show the latest tool timeline.
+Use timewarp to show the latest timeline and focus on tool-related events.
 ```
 
 或者让 Codex 直接运行 CLI：
 
 ```text
-Run: npm --prefix rec run timewarp -- show --latest --tools-only --limit 20
+Run: npm run timewarp -- show --latest --tools-only --limit 20
 ```
 
 ## 推荐工作流

@@ -2,9 +2,9 @@
 
 [English](./README.md) | [Simplified Chinese](./README.zh-CN.md)
 
-Recover Codex runs from the exact bad prompt, message, or tool call instead of restarting the whole task.
+Recover Codex runs from the exact bad prompt, assistant message, tool call, or tool result instead of restarting the whole task.
 
-`codex-timewarp` is a local Codex marketplace that contains the `timewarp` plugin, a TypeScript/Node MVP for inspecting Codex session transcripts and generating safe recovery prompts.
+`codex-timewarp` is a Codex plugin marketplace repository for the `timewarp` plugin, a TypeScript/Node MVP for inspecting Codex session transcripts and generating safe recovery prompts.
 
 ## What It Solves
 
@@ -35,97 +35,105 @@ Timewarp intentionally does not rewrite original session files, restore workspac
 ## Repository Layout
 
 ```text
-rec/
-  .agents/plugins/marketplace.json
-  package.json
-  README.md
-  README.zh-CN.md
-  plugins/timewarp/
-    .codex-plugin/plugin.json
-    skills/timewarp/SKILL.md
-    bin/timewarp.ts
-    hooks/hooks.json
-    hooks/timewarp-hook.ts
-    src/
-    test/
+.agents/plugins/marketplace.json
+package.json
+README.md
+README.zh-CN.md
+plugins/timewarp/
+  .codex-plugin/plugin.json
+  skills/timewarp/SKILL.md
+  bin/timewarp.ts
+  hooks/hooks.json
+  hooks/timewarp-hook.ts
+  src/
+  test/
 ```
 
-`rec/` is the marketplace root. `rec/plugins/timewarp/` is the plugin root.
+The repository root is the marketplace root. `plugins/timewarp/` is the plugin root.
+
+## Install As A Codex Plugin
+
+Install from GitHub with SSH. This is the safest option for private repositories or setups that already use GitHub SSH keys:
+
+```sh
+codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
+codex plugin add timewarp@codex-timewarp
+```
+
+Then restart Codex so plugin skills and hooks are reloaded.
+
+If the repository is public and your environment can clone from GitHub over HTTPS, the shorthand form also works:
+
+```sh
+codex plugin marketplace add pinksky13/codex-timewarp --ref main
+codex plugin add timewarp@codex-timewarp
+```
+
+To test installation without touching your real Codex config:
+
+```sh
+mkdir -p /tmp/timewarp-codex-home
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin marketplace add git@github.com:pinksky13/codex-timewarp.git --ref main
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@codex-timewarp
+CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewarp
+```
 
 ## Quick Start
 
-Run from the parent directory of `rec/`:
+Clone the repository, then run commands from the repository root:
 
 ```sh
-npm --prefix rec run check
-npm --prefix rec run timewarp -- show --latest --tools-only --limit 20
+git clone git@github.com:pinksky13/codex-timewarp.git
+cd codex-timewarp
+npm run check
+npm run timewarp -- show --latest --tools-only --limit 20
 ```
 
-The first command runs syntax checks and tests. The second command shows recent tool-related events from the latest Codex session.
+`npm run check` runs syntax checks and tests. `npm run timewarp -- show ...` shows recent tool-related events from the latest Codex session.
 
 ## Common Commands
 
 Show the latest timeline:
 
 ```sh
-npm --prefix rec run timewarp -- show --latest --limit 30
+npm run timewarp -- show --latest --limit 30
 ```
 
 Show only tool-related events:
 
 ```sh
-npm --prefix rec run timewarp -- show --latest --tools-only --limit 30
+npm run timewarp -- show --latest --tools-only --limit 30
 ```
 
 Inspect one event:
 
 ```sh
-npm --prefix rec run timewarp -- inspect E528 --latest
+npm run timewarp -- inspect E528 --latest
 ```
 
 Generate a recovery prompt from before a bad event:
 
 ```sh
-npm --prefix rec run timewarp -- prompt --before E528 --latest
+npm run timewarp -- prompt --before E528 --latest
 ```
 
 Generate a recovery prompt from after an event:
 
 ```sh
-npm --prefix rec run timewarp -- prompt --after E528 --latest
+npm run timewarp -- prompt --after E528 --latest
 ```
 
 Write a manual tool-result override:
 
 ```sh
-npm --prefix rec run timewarp -- override E529 --latest --replacement "Corrected tool output goes here."
+npm run timewarp -- override E529 --latest --replacement "Corrected tool output goes here."
 ```
 
 Use JSON output for automation:
 
 ```sh
-npm --prefix rec run timewarp -- show --latest --tools-only --json
-npm --prefix rec run timewarp -- inspect E528 --latest --json
-```
-
-## Install As A Codex Plugin
-
-Install into your real Codex environment:
-
-```sh
-codex plugin marketplace add /Users/zhouziyan/intel/learning/rec
-codex plugin add timewarp@timewarp-local
-```
-
-Then restart Codex so plugin skills and hooks are reloaded.
-
-To test installation without touching your real Codex config:
-
-```sh
-mkdir -p /tmp/timewarp-codex-home
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin marketplace add "$(pwd)/rec"
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@timewarp-local
-CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace timewarp-local
+npm run timewarp -- show --latest --tools-only --json
+npm run timewarp -- inspect E528 --latest --json
 ```
 
 ## Using Inside Codex
@@ -135,13 +143,13 @@ Native slash-command registration is not assumed in this MVP. The plugin exposes
 Inside Codex, ask:
 
 ```text
-Use timewarp to show the latest tool timeline.
+Use timewarp to show the latest timeline and focus on tool-related events.
 ```
 
 Or ask Codex to run the CLI directly:
 
 ```text
-Run: npm --prefix rec run timewarp -- show --latest --tools-only --limit 20
+Run: npm run timewarp -- show --latest --tools-only --limit 20
 ```
 
 ## Recommended Workflow

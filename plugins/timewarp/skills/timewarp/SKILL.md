@@ -12,14 +12,14 @@ Use this skill when the user asks for `/timewarp`, `timewarp`, tool-call recover
 Run the local CLI from the plugin root:
 
 ```sh
-node "${PLUGIN_ROOT:-rec/plugins/timewarp}/bin/timewarp.ts" show --latest
-node "${PLUGIN_ROOT:-rec/plugins/timewarp}/bin/timewarp.ts" show --latest --tools-only
-node "${PLUGIN_ROOT:-rec/plugins/timewarp}/bin/timewarp.ts" inspect E001 --latest
-node "${PLUGIN_ROOT:-rec/plugins/timewarp}/bin/timewarp.ts" prompt --before E001 --latest
-node "${PLUGIN_ROOT:-rec/plugins/timewarp}/bin/timewarp.ts" override E002 --replacement "corrected tool output" --latest
+node "${PLUGIN_ROOT:-plugins/timewarp}/bin/timewarp.ts" show --latest
+node "${PLUGIN_ROOT:-plugins/timewarp}/bin/timewarp.ts" show --latest --tools-only
+node "${PLUGIN_ROOT:-plugins/timewarp}/bin/timewarp.ts" inspect E001 --latest
+node "${PLUGIN_ROOT:-plugins/timewarp}/bin/timewarp.ts" prompt --before E001 --latest
+node "${PLUGIN_ROOT:-plugins/timewarp}/bin/timewarp.ts" override E002 --replacement "corrected tool output" --latest
 ```
 
-If `PLUGIN_ROOT` is not set, resolve the plugin root by finding `rec/plugins/timewarp/` in the current workspace.
+When installed as a Codex plugin, `PLUGIN_ROOT` should be set by the plugin runtime. For local clone debugging, run commands from the repository root so `plugins/timewarp/` resolves correctly.
 
 ## Recovery Policy
 

@@ -1,7 +1,7 @@
 {
-  "name": "timewarp-local",
+  "name": "codex-timewarp",
   "interface": {
-    "displayName": "Timewarp Local"
+    "displayName": "Codex Timewarp"
   },
   "plugins": [
     {
