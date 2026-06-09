@@ -1,0 +1,20 @@
+{
+  "name": "timewarp-local",
+  "interface": {
+    "displayName": "Timewarp Local"
+  },
+  "plugins": [
+    {
+      "name": "timewarp",
+      "source": {
+        "source": "local",
+        "path": "./plugins/timewarp"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

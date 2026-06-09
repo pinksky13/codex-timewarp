@@ -1,0 +1,28 @@
+{
+  "name": "timewarp",
+  "version": "0.1.0",
+  "description": "Inspect Codex session timelines and generate transcript-only tool-call recovery prompts.",
+  "author": {
+    "name": "Local Codex"
+  },
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Codex Timewarp",
+    "shortDescription": "Inspect tool calls and plan safe transcript recovery.",
+    "longDescription": "Codex Timewarp parses local Codex JSONL session transcripts, shows a compact tool-call timeline, links calls to results, classifies recovery risk, and generates safe transcript-only recovery prompts without rewriting original sessions.",
+    "developerName": "Local Codex",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "/timewarp show",
+      "/timewarp inspect E001",
+      "/timewarp override E002"
+    ],
+    "screenshots": []
+  }
+}

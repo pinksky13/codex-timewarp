@@ -1,0 +1,19 @@
+{
+  "name": "timewarp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Codex tool-call recovery MVP for inspecting session transcripts and generating safe recovery prompts.",
+  "type": "module",
+  "bin": {
+    "timewarp": "./bin/timewarp.ts"
+  },
+  "scripts": {
+    "timewarp": "node ./bin/timewarp.ts",
+    "test": "node --test ./test/*.test.ts",
+    "check": "node --check ./bin/timewarp.ts && node --check ./hooks/timewarp-hook.ts && node --test ./test/*.test.ts"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "devDependencies": {}
+}
