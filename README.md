@@ -51,7 +51,9 @@ plugins/timewarp/
 
 The repository root is the marketplace root. `plugins/timewarp/` is the plugin root.
 
-## Install As A Codex Plugin
+## Install As A Codex Plugin (Recommended For Users)
+
+Use this path if you want Timewarp available inside Codex. It registers this repository as a Codex marketplace and installs the `timewarp` plugin into your Codex environment. You do not need to clone this repository.
 
 Install from GitHub with SSH. This is the safest option for private repositories or setups that already use GitHub SSH keys:
 
@@ -78,7 +80,9 @@ CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@codex-timewarp
 CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewarp
 ```
 
-## Quick Start
+## Local CLI Quick Start (For Development)
+
+Use this path if you are developing Timewarp, testing a change, or manually running the CLI from a cloned checkout. This does not install the plugin into Codex.
 
 Clone the repository, then run commands from the repository root:
 
@@ -91,7 +95,7 @@ npm run timewarp -- show --latest --tools-only --limit 20
 
 `npm run check` runs syntax checks and tests. `npm run timewarp -- show ...` shows recent tool-related events from the latest Codex session.
 
-## Common Commands
+## Local CLI Commands
 
 Show the latest timeline:
 
@@ -140,7 +144,7 @@ npm run timewarp -- inspect E528 --latest --json
 
 Native slash-command registration is not assumed in this MVP. The plugin exposes a `timewarp` skill and a CLI.
 
-Inside Codex, ask:
+After installing the plugin, ask Codex:
 
 ```text
 Use timewarp to show the latest timeline and focus on tool-related events.

@@ -51,7 +51,9 @@ plugins/timewarp/
 
 仓库根目录就是 marketplace 根目录。`plugins/timewarp/` 是插件根目录。
 
-## 作为 Codex 插件安装
+## 作为 Codex 插件安装（用户推荐）
+
+如果你想在 Codex 里直接使用 Timewarp，应该走这条路径。它会把这个仓库注册成 Codex marketplace，并把 `timewarp` 插件安装到你的 Codex 环境里。不需要 clone 这个仓库。
 
 使用 SSH 从 GitHub 安装。私有仓库，或者本机已经配置 GitHub SSH key 时，优先用这种方式：
 
@@ -78,7 +80,9 @@ CODEX_HOME=/tmp/timewarp-codex-home codex plugin add timewarp@codex-timewarp
 CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewarp
 ```
 
-## 快速开始
+## 本地 CLI 快速开始（开发/调试）
+
+如果你要开发 Timewarp、测试改动，或者从 clone 下来的仓库里手动跑 CLI，才走这条路径。它不会把插件安装到 Codex 里。
 
 clone 仓库后，在仓库根目录运行：
 
@@ -91,7 +95,7 @@ npm run timewarp -- show --latest --tools-only --limit 20
 
 `npm run check` 会运行语法检查和测试。`npm run timewarp -- show ...` 会展示最新 Codex session 里最近的工具相关事件。
 
-## 常用命令
+## 本地 CLI 命令
 
 查看最新时间线：
 
@@ -140,7 +144,7 @@ npm run timewarp -- inspect E528 --latest --json
 
 这个 MVP 不假设 Codex 已支持插件注册原生 slash command。插件提供的是 `timewarp` skill 和 CLI。
 
-在 Codex 里可以这样说：
+安装插件后，在 Codex 里可以这样说：
 
 ```text
 Use timewarp to show the latest timeline and focus on tool-related events.
