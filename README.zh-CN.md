@@ -4,7 +4,7 @@
 
 从具体出错的 prompt、assistant message、tool call 或 tool result 恢复 Codex 运行，而不是重启整个长任务。
 
-`codex-timewarp` 是一个 Codex 插件 marketplace 仓库，里面包含 `timewarp` 插件。它会检查本地 Codex session transcript，帮你定位出错事件，并生成安全的 transcript-only 恢复 prompt。
+`codex-timewarp` 是一个 Codex 插件 marketplace 仓库，里面包含 `timewarp` 插件。它会检查本地 Codex session transcript，帮你定位出错事件，并生成用于干净新会话的恢复包。
 
 ## 推荐默认流程
 
@@ -48,7 +48,7 @@ Timewarp 不替代 Codex。
 - Codex 执行任务，并写入 JSONL session。
 - Timewarp 读取本地 session 时间线。
 - 你检查具体出错的 prompt、assistant message、tool call 或 tool result。
-- Timewarp 生成继续用的恢复 prompt，或者记录手动修正的工具结果。
+- Timewarp 生成用于干净 Codex 新会话的 restart 恢复包，或者记录手动修正的工具结果。
 
 Timewarp 不会恢复工作区文件，不会改写原始 session 文件，也不会自动重跑有副作用的工具。
 
@@ -58,7 +58,8 @@ Timewarp 不会恢复工作区文件，不会改写原始 session 文件，也�
 2. 重启 Codex。
 3. 让 Codex 使用 `timewarp` 展示最新工具相关时间线。
 4. 先 inspect 可疑事件 ID，再决定恢复动作。
-5. 从选定事件之前或之后生成恢复 prompt。
+5. 从选定事件之前或之后生成 `restart` 恢复包。
+6. 开启 `/new` 或 `/clear`，粘贴整个恢复包，然后从选定边界继续。
 
 ## 解决什么问题
 
@@ -71,7 +72,7 @@ Timewarp 不会恢复工作区文件，不会改写原始 session 文件，也�
 - 模型误读了工具结果
 - 后续 patch 修改了不该修改的文件
 
-重启整个任务会浪费上下文和时间。Timewarp 可以让你检查 session 时间线，定位出错事件，并从那个精确边界生成恢复 prompt。
+重启整个任务会浪费上下文和时间。Timewarp 可以让你检查 session 时间线，定位出错事件，并从那个精确边界生成用于干净新会话的恢复包。
 
 ## 功能
 
@@ -81,7 +82,8 @@ Timewarp 不会恢复工作区文件，不会改写原始 session 文件，也�
 - 通过 `call_id` 关联工具调用和工具结果。
 - 检查 prompt、message、工具调用、工具结果和 patch 事件。
 - 标记副作用风险：`read_only`、`local_workspace_mutation`、`external_side_effect` 或 `unknown`。
-- 生成 transcript-only 恢复 prompt。
+- 生成用于干净 Codex 新会话的 `restart` 恢复包。
+- 保留 `prompt` 作为显式接受当前会话软恢复时的选项。
 - 把手动修正的工具结果写入 `$CODEX_HOME/timewarp/overrides/`。
 
 ## 推荐工作流
@@ -90,9 +92,9 @@ Timewarp 不会恢复工作区文件，不会改写原始 session 文件，也�
 
 1. 运行 `show --latest --tools-only` 找到可疑事件。
 2. 对可疑 prompt、调用或结果运行 `inspect <event-id>`。
-3. 如果要从某个 transcript 边界继续，运行 `prompt --before <event-id>` 或 `prompt --after <event-id>`。
-4. 如果某个工具结果错误或不完整，运行 `override <event-id> --replacement ...`。
-5. 把生成的恢复 prompt 交给 Codex 使用。
+3. 如果要从某个 transcript 边界继续，运行 `restart --before <event-id>` 或 `restart --after <event-id>`。
+4. 如果某个工具结果错误或不完整，给 `restart` 传入 `--replacement ...`、`--replacement-file <path>` 或 `--stdin`。
+5. 开启干净 Codex 会话：`/new` 或 `/clear`，粘贴整个恢复包，并在那里继续。
 
 ## 开发
 
@@ -129,16 +131,28 @@ npm run timewarp -- show --latest --tools-only --limit 30
 npm run timewarp -- inspect E528 --latest
 ```
 
-生成“从坏事件之前继续”的恢复 prompt：
+生成“从坏事件之前继续”的干净新会话恢复包：
+
+```sh
+npm run timewarp -- restart --before E528 --latest
+```
+
+生成“从某事件之后继续”的干净新会话恢复包：
+
+```sh
+npm run timewarp -- restart --after E528 --latest
+```
+
+生成带修正工具结果的恢复包，并在剪贴板支持可用时复制：
+
+```sh
+npm run timewarp -- restart --after E529 --latest --replacement "Corrected tool output goes here." --copy
+```
+
+只有在你明确接受当前污染会话里的软恢复时，才生成 soft recovery prompt：
 
 ```sh
 npm run timewarp -- prompt --before E528 --latest
-```
-
-生成“从某事件之后继续”的恢复 prompt：
-
-```sh
-npm run timewarp -- prompt --after E528 --latest
 ```
 
 写入手动修正的工具结果：
@@ -168,15 +182,18 @@ CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewa
 
 - 恢复前优先用 `inspect` 看详情，不要只根据短 preview 判断。
 - 对 `unknown` 和 `local_workspace_mutation` 风险保持保守。
-- 当工作区可能已经包含后续文件变更时，优先使用 `prompt` 做 transcript-only 恢复。
-- 当工具结果过期、不完整或误导，但不需要回滚文件时，使用 `override`。
+- 恢复、rewind 或干净 continuation 时，优先使用 `restart`。
+- 只有在明确接受当前会话软恢复时，才使用 `prompt`。
+- 只有在明确需要插件自有 override 状态时，才使用 `override`。
 - `replacement` 文本尽量短、事实化、具体。
 - 不要把这个 MVP 当成“文件已经回滚到历史状态”的证明。
 - 不要静默重跑会修改本地文件、部署、push、发帖或发邮件的命令。
 
 ## 安全模型
 
-`prompt` 和类似 `fork` 的恢复只生成文本，不会修改 Codex transcript。
+`restart`、`prompt` 和类似 `fork` 的恢复只生成文本，不会修改 Codex transcript。
+
+`restart` 是推荐的 hard recovery 流程。它生成的恢复包应该贴到新的 `/new` 或 `/clear` 会话，不应该贴回旧的污染会话。
 
 `override` 会把合成 override 事件写入插件自己的状态目录：
 

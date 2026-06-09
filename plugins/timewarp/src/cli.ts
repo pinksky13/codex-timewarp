@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { formatInspect, formatPrompt, formatTimeline } from "./format.ts";
 import { appendOverride } from "./overrides.ts";
-import { buildForkPrompt, buildRecoveryPrompt } from "./recovery-planner.ts";
+import { buildForkPrompt, buildRecoveryPrompt, buildRestartRecoveryPack } from "./recovery-planner.ts";
 import { resolveSession } from "./session-reader.ts";
 import { findTimelineEvent, normalizeTimeline } from "./timeline-normalizer.ts";
 import type { EventBoundary, Timeline } from "./types.ts";
@@ -32,6 +32,9 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     case "prompt":
     case "fork":
       await commandPrompt(args);
+      return;
+    case "restart":
+      await commandRestart(args);
       return;
     case "override":
       await commandOverride(args);
@@ -139,6 +142,48 @@ async function commandPrompt(args: ParsedArgs): Promise<void> {
   console.log(formatPrompt(prompt));
 }
 
+async function commandRestart(args: ParsedArgs): Promise<void> {
+  const timeline = await loadTimeline(args);
+  const boundary = parseBoundary(args);
+  const replacement = await replacementFromArgs(args);
+  const pack = buildRestartRecoveryPack({
+    timeline,
+    boundary,
+    replacement,
+    allowLargeReplacement: booleanFlag(args, "allow-large")
+  });
+  const copyResult = booleanFlag(args, "copy") ? await copyRecoveryPack(pack.recoveryPack) : { copied: false as const };
+  const warnings = [...pack.warnings];
+
+  if ("warning" in copyResult) {
+    warnings.push(copyResult.warning);
+  }
+
+  if (booleanFlag(args, "json")) {
+    printJson({
+      mode: "restart",
+      session_id: timeline.session.sessionId,
+      boundary: {
+        side: boundary.side,
+        event_id: boundary.eventId
+      },
+      recovery_pack: pack.recoveryPack,
+      copied: copyResult.copied,
+      warnings
+    });
+    return;
+  }
+
+  console.log(pack.recoveryPack);
+  if ("command" in copyResult) {
+    console.log("");
+    console.log(`Copied recovery pack to clipboard with ${copyResult.command}.`);
+  } else if ("warning" in copyResult) {
+    console.log("");
+    console.warn(`Warning: ${copyResult.warning}`);
+  }
+}
+
 async function commandOverride(args: ParsedArgs): Promise<void> {
   const target = args.positional[0];
   if (!target) {
@@ -217,6 +262,20 @@ async function replacementFromArgs(args: ParsedArgs): Promise<string | undefined
   return undefined;
 }
 
+async function copyRecoveryPack(recoveryPack: string): Promise<
+  | {
+      copied: true;
+      command: string;
+    }
+  | {
+      copied: false;
+      warning?: string;
+    }
+> {
+  const { copyToClipboard } = await import("./clipboard.ts");
+  return copyToClipboard(recoveryPack);
+}
+
 function stringFlag(args: ParsedArgs, name: string): string | undefined {
   const value = args.flags.get(name);
   return typeof value === "string" ? value : undefined;
@@ -251,6 +310,8 @@ Usage:
   timewarp inspect <event-id> [--latest|--session <id>|--path <jsonl>] [--json]
   timewarp prompt --before <event-id> [--replacement <text>] [--json]
   timewarp prompt --after <event-id> [--replacement <text>] [--json]
+  timewarp restart --before <event-id> [--replacement <text>|--replacement-file <path>|--stdin] [--copy] [--json]
+  timewarp restart --after <event-id> [--replacement <text>|--replacement-file <path>|--stdin] [--copy] [--allow-large] [--json]
   timewarp fork --before <event-id> [--json]
   timewarp override <event-id> --replacement <text> [--json]
 

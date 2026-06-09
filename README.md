@@ -4,7 +4,7 @@
 
 Recover Codex runs from the exact bad prompt, assistant message, tool call, or tool result instead of restarting the whole task.
 
-`codex-timewarp` is a Codex plugin marketplace repository for the `timewarp` plugin. It inspects local Codex session transcripts, helps you find the bad event, and generates safe transcript-only recovery prompts.
+`codex-timewarp` is a Codex plugin marketplace repository for the `timewarp` plugin. It inspects local Codex session transcripts, helps you find the bad event, and generates clean-session recovery packs.
 
 ## Recommended Default Flow
 
@@ -48,7 +48,7 @@ It adds an inspection and recovery layer around Codex session transcripts:
 - Codex runs the task and writes JSONL sessions.
 - Timewarp reads the local session timeline.
 - You inspect the exact prompt, assistant message, tool call, or tool result that went wrong.
-- Timewarp generates a continuation prompt or records a manual tool-result override.
+- Timewarp generates a restart recovery pack for a clean Codex conversation or records a manual tool-result override.
 
 Timewarp intentionally does not restore workspace files, rewrite original session files, or rerun mutating tools automatically.
 
@@ -58,7 +58,8 @@ Timewarp intentionally does not restore workspace files, rewrite original sessio
 2. Restart Codex.
 3. Ask Codex to use `timewarp` and show the latest tool-related timeline.
 4. Inspect the suspicious event ID before choosing a recovery action.
-5. Generate a recovery prompt from before or after the chosen event.
+5. Generate a `restart` recovery pack from before or after the chosen event.
+6. Start `/new` or `/clear`, paste the whole pack, and continue from the selected boundary.
 
 ## What It Solves
 
@@ -71,7 +72,7 @@ Long agent runs often fail at one specific point:
 - the model misread a tool result
 - a later patch changed files you did not intend to change
 
-Restarting the whole task wastes context and time. Timewarp lets you inspect the session timeline, locate the bad event, and generate a recovery prompt from that exact boundary.
+Restarting the whole task wastes context and time. Timewarp lets you inspect the session timeline, locate the bad event, and generate a clean-session recovery pack from that exact boundary.
 
 ## Features
 
@@ -81,7 +82,8 @@ Restarting the whole task wastes context and time. Timewarp lets you inspect the
 - Link tool calls to tool results by `call_id`.
 - Inspect prompts, messages, tool calls, tool results, and patch events.
 - Classify side-effect risk: `read_only`, `local_workspace_mutation`, `external_side_effect`, or `unknown`.
-- Generate transcript-only recovery prompts.
+- Generate `restart` recovery packs for clean Codex conversations.
+- Keep `prompt` available as explicit soft recovery for the current session.
 - Store manual tool-result overrides under `$CODEX_HOME/timewarp/overrides/`.
 
 ## Recommended Workflow
@@ -90,9 +92,9 @@ Installed plugin users can ask Codex to perform these Timewarp actions; local de
 
 1. Run `show --latest --tools-only` to locate suspicious events.
 2. Run `inspect <event-id>` on the suspected prompt, call, or result.
-3. If the transcript should continue from a boundary, run `prompt --before <event-id>` or `prompt --after <event-id>`.
-4. If a tool result was wrong or incomplete, run `override <event-id> --replacement ...`.
-5. Use the generated recovery prompt in Codex.
+3. If the transcript should continue from a boundary, run `restart --before <event-id>` or `restart --after <event-id>`.
+4. If a tool result was wrong or incomplete, pass `--replacement ...`, `--replacement-file <path>`, or `--stdin` to `restart`.
+5. Start a clean Codex conversation with `/new` or `/clear`, paste the whole recovery pack, and continue there.
 
 ## Development
 
@@ -129,16 +131,28 @@ Inspect one event:
 npm run timewarp -- inspect E528 --latest
 ```
 
-Generate a recovery prompt from before a bad event:
+Generate a clean-session recovery pack from before a bad event:
+
+```sh
+npm run timewarp -- restart --before E528 --latest
+```
+
+Generate a clean-session recovery pack from after an event:
+
+```sh
+npm run timewarp -- restart --after E528 --latest
+```
+
+Generate a recovery pack with a corrected tool result and copy it when clipboard support is available:
+
+```sh
+npm run timewarp -- restart --after E529 --latest --replacement "Corrected tool output goes here." --copy
+```
+
+Generate a soft recovery prompt for the current session only when you explicitly accept polluted-session recovery:
 
 ```sh
 npm run timewarp -- prompt --before E528 --latest
-```
-
-Generate a recovery prompt from after an event:
-
-```sh
-npm run timewarp -- prompt --after E528 --latest
 ```
 
 Write a manual tool-result override:
@@ -168,15 +182,18 @@ CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewa
 
 - Prefer `inspect` before recovery. Do not recover from an event ID based only on a short preview.
 - Treat `unknown` and `local_workspace_mutation` risk labels conservatively.
-- Use `prompt` for transcript-only recovery when the workspace may already contain later file changes.
-- Use `override` when the tool result is stale, incomplete, or misleading, but the workspace does not need rollback.
+- Prefer `restart` for recovery, rewind, or clean continuation.
+- Use `prompt` only when you explicitly accept soft recovery in the current session.
+- Use `override` when you specifically want plugin-owned override state.
 - Keep replacement text short, factual, and specific.
 - Do not use this MVP as proof that files were restored to an earlier state.
 - Do not silently rerun mutating commands, deploys, pushes, posts, or email-sending commands.
 
 ## Safety Model
 
-`prompt` and `fork` style recovery only generate text. They do not mutate Codex transcripts.
+`restart`, `prompt`, and `fork` style recovery only generate text. They do not mutate Codex transcripts.
+
+`restart` is the recommended hard recovery flow. Its pack is intended for a fresh `/new` or `/clear` conversation, not the old polluted session.
 
 `override` writes synthetic override events to plugin-owned state:
 
