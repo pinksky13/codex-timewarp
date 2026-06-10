@@ -8,6 +8,7 @@
   },
   "files": [
     ".agents/plugins/marketplace.json",
+    "assets/",
     "bin/",
     "plugins/timewarp/.codex-plugin/plugin.json",
     "plugins/timewarp/bin/",
