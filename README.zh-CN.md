@@ -211,6 +211,8 @@ flowchart TD
   G --> H[把 recovery pack 粘贴到 /new 或 /clear]
 ```
 
+![Codex Timewarp 恢复闭环终端截图](./assets/timewarp-recovery-loop.png)
+
 在 Codex 里优先直接提出动作：
 
 ```text

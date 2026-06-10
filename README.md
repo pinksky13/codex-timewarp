@@ -211,6 +211,8 @@ flowchart TD
   G --> H[Paste recovery pack into /new or /clear]
 ```
 
+![Codex Timewarp recovery loop terminal screenshot](./assets/timewarp-recovery-loop.png)
+
 Inside Codex, prefer asking for the action directly:
 
 ```text

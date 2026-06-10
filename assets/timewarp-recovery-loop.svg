@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+  <title id="title">Codex Timewarp recovery loop terminal screenshot</title>
+  <desc id="desc">A terminal-style screenshot showing show, inspect, correct, and restart commands for a Codex Timewarp recovery loop.</desc>
+  <defs>
+    <linearGradient id="page" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f7fafc"/>
+      <stop offset="1" stop-color="#eef2f7"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#111827" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="980" fill="url(#page)"/>
+  <text x="112" y="108" fill="#111827" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="44" font-weight="750">Codex Timewarp recovery loop</text>
+  <text x="114" y="154" fill="#526071" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="22">Show, inspect, correct, then restart inside the current Codex session.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="110" y="210" width="1380" height="660" rx="18" fill="#0b1020"/>
+    <rect x="110" y="210" width="1380" height="54" rx="18" fill="#151c2f"/>
+    <rect x="110" y="246" width="1380" height="18" fill="#151c2f"/>
+    <circle cx="145" cy="237" r="8" fill="#ff5f57"/>
+    <circle cx="174" cy="237" r="8" fill="#ffbd2e"/>
+    <circle cx="203" cy="237" r="8" fill="#28c840"/>
+    <text x="750" y="245" text-anchor="middle" fill="#bac7dd" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16">codex-timewarp</text>
+
+    <text x="146" y="320" fill="#7dd3fc" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="23">$ timewarp show --latest --tools-only</text>
+    <text x="146" y="361" fill="#d8dee9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="21">Current session timeline</text>
+    <text x="146" y="396" fill="#9aa9bd" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">E337 assistant   Added README best-practice section</text>
+    <text x="146" y="426" fill="#9aa9bd" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">E341 tool        npm run check</text>
+    <text x="146" y="456" fill="#fbbf24" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">E342 tool_result Suspicious risk classification</text>
+    <text x="146" y="486" fill="#9aa9bd" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">E343 assistant   Need to recheck from E342</text>
+
+    <line x1="146" y1="526" x2="1454" y2="526" stroke="#243047" stroke-width="1"/>
+    <text x="146" y="577" fill="#7dd3fc" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="23">$ timewarp inspect E342 --latest</text>
+    <text x="146" y="618" fill="#d8dee9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="21">Tool result detail</text>
+    <text x="146" y="653" fill="#fda4af" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">Issue: redirection was treated as safe; it can mutate files.</text>
+    <text x="146" y="683" fill="#c4d1e4" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">Correction: classify it as local_workspace_mutation.</text>
+
+    <line x1="146" y1="724" x2="1454" y2="724" stroke="#243047" stroke-width="1"/>
+    <text x="146" y="775" fill="#7dd3fc" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="23">$ timewarp restart --after E342 --latest --copy</text>
+    <text x="146" y="816" fill="#d8dee9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="21">Recovery pack copied</text>
+    <text x="146" y="851" fill="#a7f3d0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">Paste the recovery pack into /new or /clear, then continue.</text>
+  </g>
+</svg>
