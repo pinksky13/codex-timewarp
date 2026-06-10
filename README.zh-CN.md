@@ -91,6 +91,8 @@ Timewarp 不会恢复工作区文件，不会改写原始 session 文件，也�
 
 安装插件的用户可以让 Codex 执行这些 Timewarp 动作；本地开发用户可以用 `npm run timewarp -- ...` 运行同样的动作。
 
+通过 Codex skill 使用时，只要事件 ID 和 session selector 明确，Codex 应该直接执行对应的 `show`、`inspect` 或 `restart` 命令，而不是只打印命令让你手动运行。
+
 1. 运行 `show --latest --tools-only` 找到可疑事件。`--latest` 会优先当前工作区；也可以用 `--cwd <path>` 显式指定工作区。
 2. 对可疑 prompt、调用或结果运行 `inspect <event-id>`。
 3. 如果要从某个 transcript 边界继续，运行 `restart --before <event-id>` 或 `restart --after <event-id>`。

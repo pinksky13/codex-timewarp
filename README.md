@@ -91,6 +91,8 @@ Restarting the whole task wastes context and time. Timewarp lets you inspect the
 
 Installed plugin users can ask Codex to perform these Timewarp actions; local development users can run the same actions with `npm run timewarp -- ...`.
 
+When used through the Codex skill, Codex should execute the requested `show`, `inspect`, or `restart` command directly when the event ID and selector are clear. It should not only print a command for you to run manually.
+
 1. Run `show --latest --tools-only` to locate suspicious events. `--latest` prefers the current workspace; use `--cwd <path>` to choose another workspace explicitly.
 2. Run `inspect <event-id>` on the suspected prompt, call, or result.
 3. If the transcript should continue from a boundary, run `restart --before <event-id>` or `restart --after <event-id>`.

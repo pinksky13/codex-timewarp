@@ -26,6 +26,11 @@ When installed as a Codex plugin, `PLUGIN_ROOT` should be set by the plugin runt
 
 ## Recovery Policy
 
+- Execute Timewarp CLI commands directly when the user's intent is clear. Do not respond with only a command for the user to run.
+- When the user says `timewarp show`, `show latest`, or asks to inspect the latest tool chain, run `show --latest --current-workspace --tools-only` unless they supplied more specific flags.
+- When the user says `inspect E123`, run `inspect E123` with the same selector context they requested, defaulting to `--latest --current-workspace`.
+- When the user says `restart before E123` or `restart after E123`, run the matching `restart` command immediately. Default to `--latest --current-workspace --copy` unless the user supplied `--path`, `--session`, `--cwd`, replacement text, or explicitly said not to copy.
+- After running `restart`, return the generated recovery pack or a concise summary plus clipboard status. Do not merely tell the user how to run restart themselves.
 - Prefer `show` and `inspect` before suggesting a recovery action.
 - `--latest` prefers the current workspace and warns on global fallback. Use `--cwd <path>` when the desired workspace is not the current shell directory.
 - Treat this MVP as transcript-only recovery.
@@ -41,9 +46,9 @@ When installed as a Codex plugin, `PLUGIN_ROOT` should be set by the plugin runt
 
 ## User-Facing Flow
 
-1. Show the timeline with stable IDs.
-2. Inspect the suspect event.
-3. Generate a `restart` recovery pack from the chosen boundary.
-4. Tell the user to start `/new` or `/clear`, paste the pack there, and continue from the selected boundary.
+1. Execute `show` to display the timeline with stable IDs.
+2. Execute `inspect` for the suspect event.
+3. Execute `restart` from the chosen boundary, copying the pack when clipboard support is available.
+4. Tell the user to start `/new` or `/clear`, paste the generated pack there, and continue from the selected boundary.
 
 The original Codex session JSONL files must remain unchanged.
