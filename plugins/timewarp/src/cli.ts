@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { formatInspect, formatPrompt, formatTimeline } from "./format.ts";
-import { appendOverride } from "./overrides.ts";
+import { appendOverride, readOverrides } from "./overrides.ts";
 import { buildForkPrompt, buildRecoveryPrompt, buildRestartRecoveryPack } from "./recovery-planner.ts";
-import { resolveSession } from "./session-reader.ts";
+import { resolveSession, sessionMatchesWorkspaceCanonical } from "./session-reader.ts";
 import { findTimelineEvent, normalizeTimeline } from "./timeline-normalizer.ts";
-import type { EventBoundary, Timeline } from "./types.ts";
+import type { EventBoundary, OverrideRecord, Timeline } from "./types.ts";
 
 type ParsedArgs = {
   command: string;
@@ -77,7 +77,12 @@ function parseArgs(argv: string[]): ParsedArgs {
 async function commandSessions(args: ParsedArgs): Promise<void> {
   const { listSessions } = await import("./session-reader.ts");
   const root = stringFlag(args, "root");
-  const sessions = await listSessions(root);
+  const cwd = stringFlag(args, "cwd") || (booleanFlag(args, "current-workspace") ? process.cwd() : undefined);
+  let sessions = await listSessions(root);
+  if (cwd) {
+    const matches = await Promise.all(sessions.map((session) => sessionMatchesWorkspaceCanonical(session.cwd, cwd)));
+    sessions = sessions.filter((_, index) => matches[index]);
+  }
   if (booleanFlag(args, "json")) {
     printJson(sessions);
     return;
@@ -114,11 +119,11 @@ async function commandInspect(args: ParsedArgs): Promise<void> {
   const linked = event.linkedEventId ? timeline.events.find((candidate) => candidate.eventId === event.linkedEventId) : undefined;
 
   if (booleanFlag(args, "json")) {
-    printJson({ event, linked });
+    printJson({ event, linked, override: event.override });
     return;
   }
 
-  console.log(formatInspect(event, linked));
+  console.log(formatInspect(event, linked, { override: event.override, selectorArgs: inspectSelectorArgs(args) }));
 }
 
 async function commandPrompt(args: ParsedArgs): Promise<void> {
@@ -145,7 +150,10 @@ async function commandPrompt(args: ParsedArgs): Promise<void> {
 async function commandRestart(args: ParsedArgs): Promise<void> {
   const timeline = await loadTimeline(args);
   const boundary = parseBoundary(args);
-  const replacement = await replacementFromArgs(args);
+  const event = findTimelineEvent(timeline, boundary.eventId);
+  const explicitReplacement = await replacementFromArgs(args);
+  const selectedOverride = explicitReplacement === undefined && boundary.side === "after" ? event.override : undefined;
+  const replacement = explicitReplacement ?? selectedOverride?.replacement;
   const pack = buildRestartRecoveryPack({
     timeline,
     boundary,
@@ -168,6 +176,8 @@ async function commandRestart(args: ParsedArgs): Promise<void> {
         event_id: boundary.eventId
       },
       recovery_pack: pack.recoveryPack,
+      replacement_source: explicitReplacement !== undefined ? "explicit" : selectedOverride ? "override" : "none",
+      override: selectedOverride,
       copied: copyResult.copied,
       warnings
     });
@@ -225,9 +235,53 @@ async function loadTimeline(args: ParsedArgs): Promise<Timeline> {
     sessionId: stringFlag(args, "session"),
     path: stringFlag(args, "path"),
     latest: booleanFlag(args, "latest"),
-    root: stringFlag(args, "root")
+    root: stringFlag(args, "root"),
+    cwd: stringFlag(args, "cwd"),
+    currentWorkspace: booleanFlag(args, "current-workspace")
   });
-  return normalizeTimeline(raw);
+  return annotateOverrides(normalizeTimeline(raw), await readOverrides(raw.sessionId));
+}
+
+function annotateOverrides(timeline: Timeline, overrides: OverrideRecord[]): Timeline {
+  if (overrides.length === 0) {
+    return timeline;
+  }
+
+  const latestByEvent = new Map<string, OverrideRecord>();
+  for (const override of overrides) {
+    const current = latestByEvent.get(override.target_event_id);
+    if (!current || override.created_at.localeCompare(current.created_at) >= 0) {
+      latestByEvent.set(override.target_event_id, override);
+    }
+  }
+
+  for (const event of timeline.events) {
+    const override = latestByEvent.get(event.eventId);
+    if (override) {
+      event.override = override;
+    }
+  }
+
+  return timeline;
+}
+
+function inspectSelectorArgs(args: ParsedArgs): string[] {
+  const path = stringFlag(args, "path");
+  if (path) {
+    return ["--path", path];
+  }
+  const session = stringFlag(args, "session");
+  if (session) {
+    return ["--session", session];
+  }
+  const cwd = stringFlag(args, "cwd");
+  if (cwd) {
+    return ["--latest", "--cwd", cwd];
+  }
+  if (booleanFlag(args, "current-workspace")) {
+    return ["--latest", "--current-workspace"];
+  }
+  return ["--latest"];
 }
 
 function parseBoundary(args: ParsedArgs): EventBoundary {
@@ -305,8 +359,8 @@ function printHelp(): void {
   console.log(`Codex Timewarp
 
 Usage:
-  timewarp sessions [--json]
-  timewarp show [--latest] [--session <id>] [--path <jsonl>] [--tools-only] [--failed] [--turn <n>] [--limit <n>] [--json]
+  timewarp sessions [--current-workspace|--cwd <path>] [--json]
+  timewarp show [--latest] [--current-workspace|--cwd <path>] [--session <id>] [--path <jsonl>] [--tools-only] [--failed] [--turn <n>] [--limit <n>] [--json]
   timewarp inspect <event-id> [--latest|--session <id>|--path <jsonl>] [--json]
   timewarp prompt --before <event-id> [--replacement <text>] [--json]
   timewarp prompt --after <event-id> [--replacement <text>] [--json]

@@ -81,19 +81,20 @@ Restarting the whole task wastes context and time. Timewarp lets you inspect the
 - Group events by user/task turn.
 - Link tool calls to tool results by `call_id`.
 - Inspect prompts, messages, tool calls, tool results, and patch events.
-- Classify side-effect risk: `read_only`, `local_workspace_mutation`, `external_side_effect`, or `unknown`.
-- Generate `restart` recovery packs for clean Codex conversations.
+- Classify side-effect risk with machine-readable reasons: `read_only`, `local_workspace_mutation`, `external_side_effect`, or `unknown`.
+- Prefer the current workspace when selecting `--latest`; warn when falling back to the global latest session.
+- Generate richer `restart` recovery packs for clean Codex conversations, including full user intent and nearby tool context within a size budget.
 - Keep `prompt` available as explicit soft recovery for the current session.
-- Store manual tool-result overrides under `$CODEX_HOME/timewarp/overrides/`.
+- Store manual tool-result override records under `$CODEX_HOME/timewarp/overrides/` and apply the latest matching override to `restart --after <event-id>` when no explicit replacement is supplied.
 
 ## Recommended Workflow
 
 Installed plugin users can ask Codex to perform these Timewarp actions; local development users can run the same actions with `npm run timewarp -- ...`.
 
-1. Run `show --latest --tools-only` to locate suspicious events.
+1. Run `show --latest --tools-only` to locate suspicious events. `--latest` prefers the current workspace; use `--cwd <path>` to choose another workspace explicitly.
 2. Run `inspect <event-id>` on the suspected prompt, call, or result.
 3. If the transcript should continue from a boundary, run `restart --before <event-id>` or `restart --after <event-id>`.
-4. If a tool result was wrong or incomplete, pass `--replacement ...`, `--replacement-file <path>`, or `--stdin` to `restart`.
+4. If a tool result was wrong or incomplete, pass `--replacement ...`, `--replacement-file <path>`, or `--stdin` to `restart`, or create an `override` record and run `restart --after <event-id>`.
 5. Start a clean Codex conversation with `/new` or `/clear`, paste the whole recovery pack, and continue there.
 
 ## Development
@@ -117,6 +118,12 @@ Show the latest timeline:
 
 ```sh
 npm run timewarp -- show --latest --limit 30
+```
+
+Show the latest timeline for an explicit workspace:
+
+```sh
+npm run timewarp -- show --latest --cwd /path/to/repo --limit 30
 ```
 
 Show only tool-related events:
@@ -147,6 +154,13 @@ Generate a recovery pack with a corrected tool result and copy it when clipboard
 
 ```sh
 npm run timewarp -- restart --after E529 --latest --replacement "Corrected tool output goes here." --copy
+```
+
+Generate a recovery pack using the latest matching override record:
+
+```sh
+npm run timewarp -- override E529 --latest --replacement "Corrected tool output goes here."
+npm run timewarp -- restart --after E529 --latest
 ```
 
 Generate a soft recovery prompt for the current session only when you explicitly accept polluted-session recovery:
@@ -182,9 +196,10 @@ CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewa
 
 - Prefer `inspect` before recovery. Do not recover from an event ID based only on a short preview.
 - Treat `unknown` and `local_workspace_mutation` risk labels conservatively.
+- Treat network reads such as `curl`, `git fetch`, and package metadata lookups as `unknown` unless inspection proves they are safe to repeat.
 - Prefer `restart` for recovery, rewind, or clean continuation.
 - Use `prompt` only when you explicitly accept soft recovery in the current session.
-- Use `override` when you specifically want plugin-owned override state.
+- Use `override` when you want plugin-owned override state; `restart --after` uses the latest matching override only when no explicit replacement is supplied.
 - Keep replacement text short, factual, and specific.
 - Do not use this MVP as proof that files were restored to an earlier state.
 - Do not silently rerun mutating commands, deploys, pushes, posts, or email-sending commands.
@@ -202,6 +217,14 @@ $CODEX_HOME/timewarp/overrides/<session_id>.jsonl
 ```
 
 The original files under `~/.codex/sessions/**/rollout-*.jsonl` are never modified.
+
+Installed hooks write the latest hook payload to:
+
+```text
+$CODEX_HOME/timewarp/hooks/last-hook.json
+```
+
+That hook file is diagnostic only. Hooks do not rewind sessions, create new conversations, mutate transcripts, or restore workspace files. Hook recording failures are reported as warnings and must not block core CLI recovery.
 
 ## MVP Limits
 

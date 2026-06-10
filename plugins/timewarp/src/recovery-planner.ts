@@ -1,9 +1,24 @@
 import { findTimelineEvent } from "./timeline-normalizer.ts";
+import { asString, isObject, stableStringify, textFromContent } from "./json.ts";
 import type { EventBoundary, Timeline, TimelineEvent } from "./types.ts";
 
 const DEFAULT_RESTART_MAX_CHARS = 12_000;
 const DEFAULT_RESTART_PREVIEW_CHARS = 800;
+const DEFAULT_RESTART_CONTEXT_ITEM_CHARS = 2_400;
 const DEFAULT_RESTART_REPLACEMENT_CHARS = 4_000;
+
+export type RestartContextItem = {
+  eventId: string;
+  line: number;
+  priority: number;
+  role: "user_intent" | "assistant_context" | "tool_call" | "tool_result" | "patch";
+  title: string;
+  body: string;
+  rawRef: {
+    path: string;
+    line: number;
+  };
+};
 
 export type RestartRecoveryPackResult = {
   recoveryPack: string;
@@ -68,10 +83,12 @@ export function buildRestartRecoveryPack(options: {
   allowLargeReplacement?: boolean;
   maxChars?: number;
   maxEventPreviewChars?: number;
+  maxContextItemChars?: number;
   maxReplacementChars?: number;
 }): RestartRecoveryPackResult {
   const maxChars = options.maxChars ?? DEFAULT_RESTART_MAX_CHARS;
   const maxEventPreviewChars = options.maxEventPreviewChars ?? DEFAULT_RESTART_PREVIEW_CHARS;
+  const maxContextItemChars = options.maxContextItemChars ?? DEFAULT_RESTART_CONTEXT_ITEM_CHARS;
   const maxReplacementChars = options.maxReplacementChars ?? DEFAULT_RESTART_REPLACEMENT_CHARS;
   const event = findTimelineEvent(options.timeline, options.boundary.eventId);
   const validEvents = options.timeline.events.filter((candidate) =>
@@ -87,9 +104,11 @@ export function buildRestartRecoveryPack(options: {
     maxReplacementChars,
     warnings
   });
-  const contextEvents = validEvents.filter(isRestartContextEvent);
+  const contextItems = extractRestartContext(options.timeline, options.boundary, {
+    maxContextItemChars
+  });
 
-  let includedContextEvents = contextEvents;
+  let includedContextItems = contextItems;
   let omittedContextEventCount = 0;
   let recoveryPack = assembleRestartRecoveryPack({
     timeline: options.timeline,
@@ -98,13 +117,17 @@ export function buildRestartRecoveryPack(options: {
     linked,
     replacement,
     invalidatedEvents,
-    includedContextEvents,
+    includedContextItems,
     omittedContextEventCount,
     maxEventPreviewChars
   });
 
-  while (recoveryPack.length > maxChars && includedContextEvents.length > 0) {
-    includedContextEvents = includedContextEvents.slice(1);
+  while (recoveryPack.length > maxChars && includedContextItems.length > 0) {
+    const nextContextItems = removeLowestPriorityContextItem(includedContextItems);
+    if (nextContextItems.length === includedContextItems.length) {
+      break;
+    }
+    includedContextItems = nextContextItems;
     omittedContextEventCount += 1;
     recoveryPack = assembleRestartRecoveryPack({
       timeline: options.timeline,
@@ -113,7 +136,7 @@ export function buildRestartRecoveryPack(options: {
       linked,
       replacement,
       invalidatedEvents,
-      includedContextEvents,
+      includedContextItems,
       omittedContextEventCount,
       maxEventPreviewChars
     });
@@ -133,6 +156,38 @@ export function buildRestartRecoveryPack(options: {
   };
 }
 
+export function extractRestartContext(
+  timeline: Timeline,
+  boundary: EventBoundary,
+  options: {
+    maxContextItemChars?: number;
+  } = {}
+): RestartContextItem[] {
+  const maxContextItemChars = options.maxContextItemChars ?? DEFAULT_RESTART_CONTEXT_ITEM_CHARS;
+  const event = findTimelineEvent(timeline, boundary.eventId);
+  const validEvents = timeline.events.filter((candidate) =>
+    boundary.side === "after" ? candidate.rawRef.line <= event.rawRef.line : candidate.rawRef.line < event.rawRef.line
+  );
+  const selectedLinkedEventId = event.linkedEventId;
+
+  const items: RestartContextItem[] = [];
+  for (const candidate of validEvents) {
+    if (candidate.eventId === event.eventId) {
+      continue;
+    }
+    const item = contextItemForEvent(candidate, {
+      maxContextItemChars,
+      selectedLinkedEventId,
+      boundaryLine: event.rawRef.line
+    });
+    if (item) {
+      items.push(item);
+    }
+  }
+
+  return items.sort((left, right) => left.line - right.line);
+}
+
 function describeEvent(event: TimelineEvent): string {
   const tool = event.toolName ? ` tool=${event.toolName}` : "";
   const call = event.callId ? ` call_id=${event.callId}` : "";
@@ -146,7 +201,7 @@ function assembleRestartRecoveryPack(options: {
   linked?: TimelineEvent;
   replacement?: string;
   invalidatedEvents: TimelineEvent[];
-  includedContextEvents: TimelineEvent[];
+  includedContextItems: RestartContextItem[];
   omittedContextEventCount: number;
   maxEventPreviewChars: number;
 }): string {
@@ -184,11 +239,11 @@ function assembleRestartRecoveryPack(options: {
   if (options.omittedContextEventCount > 0) {
     lines.push(`- ${options.omittedContextEventCount} earlier meaningful event(s) omitted to fit the recovery pack size limit.`);
   }
-  if (options.includedContextEvents.length === 0) {
+  if (options.includedContextItems.length === 0) {
     lines.push("- No meaningful pre-boundary events were included.");
   } else {
-    for (const contextEvent of options.includedContextEvents) {
-      lines.push(formatContextEvent(contextEvent, options.maxEventPreviewChars));
+    for (const contextItem of options.includedContextItems) {
+      lines.push(formatRestartContextItem(contextItem));
     }
   }
 
@@ -215,10 +270,8 @@ function formatEventTitle(event: TimelineEvent): string {
   return `${event.eventId} ${event.type}${tool}${call}`;
 }
 
-function formatContextEvent(event: TimelineEvent, maxPreviewChars: number): string {
-  const tool = event.toolName ? ` tool=${event.toolName}` : "";
-  const call = event.callId ? ` call_id=${event.callId}` : "";
-  return `- ${event.eventId} turn=${event.turnNumber} ${event.kind} ${event.type}${tool}${call} risk=${event.risk} ref=${event.rawRef.path}:${event.rawRef.line}\n  Preview: ${truncateMultiline(event.preview, maxPreviewChars)}`;
+function formatRestartContextItem(item: RestartContextItem): string {
+  return `- ${item.eventId} ${item.role} priority=${item.priority} ref=${item.rawRef.path}:${item.rawRef.line}\n  ${item.title}\n  ${indentBody(item.body)}`;
 }
 
 function formatInvalidationRule(boundary: EventBoundary, event: TimelineEvent, invalidatedEvents: TimelineEvent[]): string {
@@ -248,14 +301,160 @@ function prepareReplacement(
   return truncateMultiline(replacement, options.maxReplacementChars);
 }
 
-function isRestartContextEvent(event: TimelineEvent): boolean {
-  return event.kind === "user" || event.kind === "assistant" || event.kind === "tool_call" || event.kind === "tool_result" || event.kind === "patch";
-}
-
 function truncateMultiline(value: string, maxLength: number): string {
   if (value.length <= maxLength) {
     return value;
   }
   const suffix = "\n[truncated]";
   return `${value.slice(0, Math.max(0, maxLength - suffix.length))}${suffix}`;
+}
+
+function contextItemForEvent(
+  event: TimelineEvent,
+  options: {
+    maxContextItemChars: number;
+    selectedLinkedEventId?: string;
+    boundaryLine: number;
+  }
+): RestartContextItem | undefined {
+  const role = contextRole(event);
+  if (!role) {
+    return undefined;
+  }
+
+  const body = contextBody(event);
+  if (!body) {
+    return undefined;
+  }
+
+  return {
+    eventId: event.eventId,
+    line: event.rawRef.line,
+    priority: contextPriority(event, role, options),
+    role,
+    title: contextTitle(event),
+    body: truncateMultiline(body, options.maxContextItemChars),
+    rawRef: event.rawRef
+  };
+}
+
+function contextRole(event: TimelineEvent): RestartContextItem["role"] | undefined {
+  if (event.kind === "user") {
+    return "user_intent";
+  }
+  if (event.kind === "assistant" && isUsefulAssistantContext(event)) {
+    return "assistant_context";
+  }
+  if (event.kind === "tool_call") {
+    return "tool_call";
+  }
+  if (event.kind === "tool_result") {
+    return "tool_result";
+  }
+  if (event.kind === "patch") {
+    return "patch";
+  }
+  return undefined;
+}
+
+function contextPriority(
+  event: TimelineEvent,
+  role: RestartContextItem["role"],
+  options: {
+    selectedLinkedEventId?: string;
+    boundaryLine: number;
+  }
+): number {
+  if (event.eventId === options.selectedLinkedEventId) {
+    return 95;
+  }
+
+  const nearBoundaryBonus = Math.max(0, 10 - Math.floor(Math.max(0, options.boundaryLine - event.rawRef.line) / 3));
+  switch (role) {
+    case "user_intent":
+      return 100 + nearBoundaryBonus;
+    case "assistant_context":
+      return 75 + nearBoundaryBonus;
+    case "tool_call":
+      return 70 + nearBoundaryBonus;
+    case "patch":
+      return 68 + nearBoundaryBonus;
+    case "tool_result":
+      return 60 + nearBoundaryBonus;
+  }
+}
+
+function contextTitle(event: TimelineEvent): string {
+  const tool = event.toolName ? ` tool=${event.toolName}` : "";
+  const call = event.callId ? ` call_id=${event.callId}` : "";
+  return `turn=${event.turnNumber} ${event.kind} ${event.type}${tool}${call} risk=${event.risk}`;
+}
+
+function contextBody(event: TimelineEvent): string | undefined {
+  const payload = rawPayload(event);
+  if (event.kind === "user") {
+    return textFromContent(payload.content) || asString(payload.message) || event.preview;
+  }
+  if (event.kind === "assistant") {
+    return textFromContent(payload.content) || asString(payload.message) || event.preview;
+  }
+  if (event.kind === "tool_call") {
+    return formatToolCallBody(payload);
+  }
+  if (event.kind === "tool_result") {
+    return asString(payload.output) || stableStringify(payload.output) || stableStringify(payload);
+  }
+  if (event.kind === "patch") {
+    return stableStringify(payload);
+  }
+  return undefined;
+}
+
+function rawPayload(event: TimelineEvent): Record<string, unknown> {
+  const payload = isObject(event.raw.payload) ? event.raw.payload : event.raw;
+  return payload;
+}
+
+function formatToolCallBody(payload: Record<string, unknown>): string {
+  const args = payload.arguments;
+  if (typeof args === "string") {
+    return args;
+  }
+  if (isObject(args)) {
+    return stableStringify(args);
+  }
+  return stableStringify(payload);
+}
+
+function isUsefulAssistantContext(event: TimelineEvent): boolean {
+  const text = contextBody(event) || "";
+  return /\b(plan|summary|decision|decide|requirement|next|final|instruction|approach|todo|will|need)\b/i.test(text);
+}
+
+function indentBody(value: string): string {
+  return value
+    .split("\n")
+    .map((line) => `  ${line}`)
+    .join("\n");
+}
+
+function removeLowestPriorityContextItem(items: RestartContextItem[]): RestartContextItem[] {
+  const latestUserLine = Math.max(...items.filter((item) => item.role === "user_intent").map((item) => item.line));
+  const removableIndexes = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.priority < 95 && !(item.role === "user_intent" && item.line === latestUserLine));
+
+  if (removableIndexes.length === 0) {
+    return items;
+  }
+
+  let removeIndex = removableIndexes[0].index;
+  for (const { index } of removableIndexes.slice(1)) {
+    const current = items[index];
+    const removable = items[removeIndex];
+    if (current.priority < removable.priority || (current.priority === removable.priority && current.line < removable.line)) {
+      removeIndex = index;
+    }
+  }
+  return items.filter((_, index) => index !== removeIndex);
 }

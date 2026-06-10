@@ -18,6 +18,7 @@ export type SessionSummary = {
   cwd?: string;
   cliVersion?: string;
   eventCount: number;
+  selection?: SessionSelection;
 };
 
 export type RawSession = SessionSummary & {
@@ -38,6 +39,26 @@ export type TimelineKind =
 
 export type RiskClass = "read_only" | "local_workspace_mutation" | "external_side_effect" | "unknown";
 
+export type RiskAssessment = {
+  risk: RiskClass;
+  reason: string;
+};
+
+export type SessionSelection =
+  | {
+      mode: "explicit_path" | "explicit_session";
+    }
+  | {
+      mode: "workspace_match";
+      cwd: string;
+      matched_cwd: string;
+    }
+  | {
+      mode: "global_fallback";
+      cwd: string;
+      warning: string;
+    };
+
 export type TimelineEvent = {
   eventId: string;
   sessionId: string;
@@ -52,6 +73,8 @@ export type TimelineEvent = {
   timestamp?: string;
   preview: string;
   risk: RiskClass;
+  riskReason: string;
+  override?: OverrideRecord;
   rawRef: {
     path: string;
     line: number;

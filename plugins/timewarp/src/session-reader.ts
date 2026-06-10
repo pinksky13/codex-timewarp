@@ -1,5 +1,5 @@
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
+import { relative, join, resolve } from "node:path";
 import { asString, isObject } from "./json.ts";
 import { getSessionRoot } from "./paths.ts";
 import type { JsonObject, ParsedTranscriptLine, RawSession, SessionSummary } from "./types.ts";
@@ -41,15 +41,48 @@ export async function listSessions(root = getSessionRoot()): Promise<SessionSumm
 export async function readSessionByPath(path: string): Promise<RawSession> {
   const resolved = resolve(path);
   const lines = await parseJsonl(resolved);
-  return buildRawSession(resolved, lines);
+  const session = await buildRawSession(resolved, lines);
+  session.selection = {
+    mode: "explicit_path"
+  };
+  return session;
 }
 
-export async function readLatestSession(root = getSessionRoot()): Promise<RawSession> {
+export async function readLatestSession(
+  root = getSessionRoot(),
+  options: {
+    cwd?: string;
+  } = {}
+): Promise<RawSession> {
   const sessions = await listSessions(root);
   if (sessions.length === 0) {
     throw new Error(`No Codex session transcripts found under ${root}`);
   }
-  return readSessionByPath(sessions[0].path);
+  const requestedCwd = await canonicalPath(options.cwd || process.cwd());
+  const sessionsWithCanonicalCwd = await Promise.all(
+    sessions.map(async (session) => ({
+      session,
+      canonicalCwd: session.cwd ? await canonicalPath(session.cwd) : undefined
+    }))
+  );
+  const workspaceMatch = sessionsWithCanonicalCwd.find((candidate) => candidate.canonicalCwd && pathsOverlap(requestedCwd, candidate.canonicalCwd));
+  if (workspaceMatch) {
+    const raw = await readSessionByPath(workspaceMatch.session.path);
+    raw.selection = {
+      mode: "workspace_match",
+      cwd: requestedCwd,
+      matched_cwd: workspaceMatch.session.cwd || requestedCwd
+    };
+    return raw;
+  }
+
+  const raw = await readSessionByPath(sessions[0].path);
+  raw.selection = {
+    mode: "global_fallback",
+    cwd: requestedCwd,
+    warning: `No latest session matched workspace ${requestedCwd}; selected global latest session cwd ${raw.cwd || "unknown"}.`
+  };
+  return raw;
 }
 
 export async function readSessionById(sessionId: string, root = getSessionRoot()): Promise<RawSession> {
@@ -58,7 +91,11 @@ export async function readSessionById(sessionId: string, root = getSessionRoot()
   if (!match) {
     throw new Error(`No Codex session found for id ${sessionId}`);
   }
-  return readSessionByPath(match.path);
+  const raw = await readSessionByPath(match.path);
+  raw.selection = {
+    mode: "explicit_session"
+  };
+  return raw;
 }
 
 export async function resolveSession(options: {
@@ -66,6 +103,8 @@ export async function resolveSession(options: {
   path?: string;
   latest?: boolean;
   root?: string;
+  cwd?: string;
+  currentWorkspace?: boolean;
 }): Promise<RawSession> {
   if (options.path) {
     return readSessionByPath(options.path);
@@ -73,7 +112,17 @@ export async function resolveSession(options: {
   if (options.sessionId) {
     return readSessionById(options.sessionId, options.root);
   }
-  return readLatestSession(options.root);
+  return readLatestSession(options.root, {
+    cwd: options.cwd || (options.currentWorkspace ? process.cwd() : undefined)
+  });
+}
+
+export function sessionMatchesWorkspace(sessionCwd: string | undefined, workspaceCwd: string): boolean {
+  return sessionCwd !== undefined && pathsOverlap(workspaceCwd, sessionCwd);
+}
+
+export async function sessionMatchesWorkspaceCanonical(sessionCwd: string | undefined, workspaceCwd: string): Promise<boolean> {
+  return sessionCwd !== undefined && pathsOverlap(await canonicalPath(workspaceCwd), await canonicalPath(sessionCwd));
 }
 
 async function summarizeSessionFile(path: string): Promise<SessionSummary> {
@@ -171,4 +220,26 @@ async function mtimeIso(path: string): Promise<string | undefined> {
   } catch {
     return undefined;
   }
+}
+
+async function canonicalPath(path: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+function pathsOverlap(left: string, right: string): boolean {
+  const normalizedLeft = resolve(left);
+  const normalizedRight = resolve(right);
+  return isSameOrDescendant(normalizedLeft, normalizedRight) || isSameOrDescendant(normalizedRight, normalizedLeft);
+}
+
+function isSameOrDescendant(candidate: string, parent: string): boolean {
+  if (candidate === parent) {
+    return true;
+  }
+  const rel = relative(parent, candidate);
+  return rel.length > 0 && !rel.startsWith("..") && !rel.startsWith("/");
 }

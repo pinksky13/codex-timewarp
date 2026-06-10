@@ -1,5 +1,5 @@
 import { stableStringify } from "./json.ts";
-import type { Timeline, TimelineEvent } from "./types.ts";
+import type { OverrideRecord, Timeline, TimelineEvent } from "./types.ts";
 
 export function formatTimeline(
   timeline: Timeline,
@@ -15,6 +15,11 @@ export function formatTimeline(
   lines.push(`Transcript: ${timeline.session.path}`);
   if (timeline.session.cwd) {
     lines.push(`Workspace: ${timeline.session.cwd}`);
+  }
+  if (timeline.session.selection?.mode === "global_fallback") {
+    lines.push(`Warning: ${timeline.session.selection.warning}`);
+  } else if (timeline.session.selection?.mode === "workspace_match") {
+    lines.push(`Selection: workspace_match (${timeline.session.selection.matched_cwd})`);
   }
   lines.push("");
 
@@ -48,7 +53,15 @@ export function formatTimeline(
   return lines.join("\n");
 }
 
-export function formatInspect(event: TimelineEvent, linked?: TimelineEvent): string {
+export function formatInspect(
+  event: TimelineEvent,
+  linked?: TimelineEvent,
+  options: {
+    override?: OverrideRecord;
+    selectorArgs?: string[];
+  } = {}
+): string {
+  const selectorArgs = options.selectorArgs || ["--latest"];
   const lines: string[] = [];
   lines.push(`${event.eventId} ${event.type}`);
   lines.push(`Turn: ${event.turnNumber}`);
@@ -65,16 +78,36 @@ export function formatInspect(event: TimelineEvent, linked?: TimelineEvent): str
     lines.push(`Linked event: ${linked.eventId} ${linked.type}`);
   }
   lines.push(`Risk: ${event.risk}`);
+  lines.push(`Risk reason: ${event.riskReason}`);
   lines.push(`Status: ${event.status || "n/a"}`);
   lines.push(`Raw ref: ${event.rawRef.path}:${event.rawRef.line}`);
+  if (options.override) {
+    lines.push(`Override: latest record from ${options.override.created_at}`);
+  } else {
+    lines.push("Override: none");
+  }
   lines.push("");
   lines.push("Preview:");
   lines.push(event.preview);
   lines.push("");
-  lines.push("Available recovery actions:");
-  for (const action of availableActions(event)) {
-    lines.push(`- ${action}`);
+  lines.push("Recommended recovery:");
+  lines.push("- Hard restart before this event:");
+  lines.push(`  ${formatCommand(["timewarp", "restart", "--before", event.eventId, ...selectorArgs])}`);
+  lines.push("- Hard restart after this event:");
+  lines.push(`  ${formatCommand(["timewarp", "restart", "--after", event.eventId, ...selectorArgs])}`);
+  if (event.kind === "tool_result") {
+    lines.push("- Hard restart with corrected result:");
+    lines.push(`  ${formatCommand(["timewarp", "restart", "--after", event.eventId, ...selectorArgs, "--replacement", "..."])}`);
   }
+  if (options.override) {
+    lines.push("- Hard restart using latest override record:");
+    lines.push(`  ${formatCommand(["timewarp", "restart", "--after", event.eventId, ...selectorArgs])}`);
+  }
+  lines.push(...riskSpecificGuidance(event));
+  lines.push("");
+  lines.push("Soft current-session prompt:");
+  lines.push(`- ${formatCommand(["timewarp", "prompt", "--before", event.eventId, ...selectorArgs])}`);
+  lines.push("  Warning: later polluted context may still influence the model.");
   lines.push("");
   lines.push("Raw:");
   lines.push(stableStringify(event.raw));
@@ -89,24 +122,21 @@ function formatTimelineRow(event: TimelineEvent): string {
   const tool = event.toolName ? ` ${event.toolName}` : "";
   const linked = event.linkedEventId ? ` -> ${event.linkedEventId}` : "";
   const status = event.status ? ` ${event.status}` : "";
-  return `  ${event.eventId} ${event.kind.padEnd(11)} ${event.type}${tool}${status}${linked} [${event.risk}]\n    ${event.preview}`;
+  const override = event.override ? " override" : "";
+  return `  ${event.eventId} ${event.kind.padEnd(11)} ${event.type}${tool}${status}${linked} [${event.risk}${override}]\n    ${event.preview}`;
 }
 
-function availableActions(event: TimelineEvent): string[] {
-  const actions = ["inspect", "prompt --before", "prompt --after"];
-  if (event.kind === "tool_result") {
-    actions.push("override");
+function riskSpecificGuidance(event: TimelineEvent): string[] {
+  switch (event.risk) {
+    case "read_only":
+      return ["- Risk note: read-only events may be acceptable to rerun after inspection."];
+    case "local_workspace_mutation":
+      return ["- Risk note: inspect `git status` and relevant diffs before making edits."];
+    case "external_side_effect":
+      return ["- Risk note: do not rerun external side-effect events without explicit user approval."];
+    case "unknown":
+      return ["- Risk note: inspect arguments and outputs before choosing a recovery boundary."];
   }
-  if (event.risk === "read_only") {
-    actions.push("manual rerun planning");
-  }
-  if (event.risk === "local_workspace_mutation") {
-    actions.push("transcript-only fork with workspace warning");
-  }
-  if (event.risk === "external_side_effect") {
-    actions.push("append correction only; do not silently rerun");
-  }
-  return actions;
 }
 
 function timeOnly(timestamp: string): string {
@@ -115,4 +145,18 @@ function timeOnly(timestamp: string): string {
     return timestamp;
   }
   return date.toISOString().slice(11, 19);
+}
+
+function formatCommand(parts: string[]): string {
+  return parts.map(shellQuote).join(" ");
+}
+
+function shellQuote(value: string): string {
+  if (value === "...") {
+    return "\"...\"";
+  }
+  if (/^[A-Za-z0-9_./:=@+-]+$/.test(value)) {
+    return value;
+  }
+  return `"${value.replace(/(["\\$`])/g, "\\$1")}"`;
 }

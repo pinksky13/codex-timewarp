@@ -81,19 +81,20 @@ Timewarp 不会恢复工作区文件，不会改写原始 session 文件，也�
 - 按 user/task turn 分组展示事件。
 - 通过 `call_id` 关联工具调用和工具结果。
 - 检查 prompt、message、工具调用、工具结果和 patch 事件。
-- 标记副作用风险：`read_only`、`local_workspace_mutation`、`external_side_effect` 或 `unknown`。
-- 生成用于干净 Codex 新会话的 `restart` 恢复包。
+- 标记副作用风险并给出机器可读原因：`read_only`、`local_workspace_mutation`、`external_side_effect` 或 `unknown`。
+- 选择 `--latest` 时优先当前工作区；如果只能使用全局最新 session，会给出 warning。
+- 生成更丰富的 `restart` 恢复包，在大小预算内包含完整用户意图和附近工具上下文。
 - 保留 `prompt` 作为显式接受当前会话软恢复时的选项。
-- 把手动修正的工具结果写入 `$CODEX_HOME/timewarp/overrides/`。
+- 把手动修正的工具结果作为 override record 写入 `$CODEX_HOME/timewarp/overrides/`；当没有显式 replacement 时，`restart --after <event-id>` 会使用最新匹配 override。
 
 ## 推荐工作流
 
 安装插件的用户可以让 Codex 执行这些 Timewarp 动作；本地开发用户可以用 `npm run timewarp -- ...` 运行同样的动作。
 
-1. 运行 `show --latest --tools-only` 找到可疑事件。
+1. 运行 `show --latest --tools-only` 找到可疑事件。`--latest` 会优先当前工作区；也可以用 `--cwd <path>` 显式指定工作区。
 2. 对可疑 prompt、调用或结果运行 `inspect <event-id>`。
 3. 如果要从某个 transcript 边界继续，运行 `restart --before <event-id>` 或 `restart --after <event-id>`。
-4. 如果某个工具结果错误或不完整，给 `restart` 传入 `--replacement ...`、`--replacement-file <path>` 或 `--stdin`。
+4. 如果某个工具结果错误或不完整，给 `restart` 传入 `--replacement ...`、`--replacement-file <path>` 或 `--stdin`；也可以先创建 `override` record，再运行 `restart --after <event-id>`。
 5. 开启干净 Codex 会话：`/new` 或 `/clear`，粘贴整个恢复包，并在那里继续。
 
 ## 开发
@@ -117,6 +118,12 @@ npm run timewarp -- show --latest --tools-only --limit 20
 
 ```sh
 npm run timewarp -- show --latest --limit 30
+```
+
+查看指定工作区的最新时间线：
+
+```sh
+npm run timewarp -- show --latest --cwd /path/to/repo --limit 30
 ```
 
 只看工具相关事件：
@@ -147,6 +154,13 @@ npm run timewarp -- restart --after E528 --latest
 
 ```sh
 npm run timewarp -- restart --after E529 --latest --replacement "Corrected tool output goes here." --copy
+```
+
+使用最新匹配 override record 生成恢复包：
+
+```sh
+npm run timewarp -- override E529 --latest --replacement "Corrected tool output goes here."
+npm run timewarp -- restart --after E529 --latest
 ```
 
 只有在你明确接受当前污染会话里的软恢复时，才生成 soft recovery prompt：
@@ -182,9 +196,10 @@ CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewa
 
 - 恢复前优先用 `inspect` 看详情，不要只根据短 preview 判断。
 - 对 `unknown` 和 `local_workspace_mutation` 风险保持保守。
+- 对 `curl`、`git fetch`、包元数据查询这类网络读取保持 `unknown` 级别，除非检查后确认可以安全重复。
 - 恢复、rewind 或干净 continuation 时，优先使用 `restart`。
 - 只有在明确接受当前会话软恢复时，才使用 `prompt`。
-- 只有在明确需要插件自有 override 状态时，才使用 `override`。
+- 需要插件自有 override 状态时使用 `override`；只有没有显式 replacement 时，`restart --after` 才会使用最新匹配 override。
 - `replacement` 文本尽量短、事实化、具体。
 - 不要把这个 MVP 当成“文件已经回滚到历史状态”的证明。
 - 不要静默重跑会修改本地文件、部署、push、发帖或发邮件的命令。
@@ -202,6 +217,14 @@ $CODEX_HOME/timewarp/overrides/<session_id>.jsonl
 ```
 
 `~/.codex/sessions/**/rollout-*.jsonl` 下的原始 session 文件不会被修改。
+
+已安装 hooks 会把最新 hook payload 写入：
+
+```text
+$CODEX_HOME/timewarp/hooks/last-hook.json
+```
+
+这个 hook 文件只用于诊断。hooks 不会 rewind session，不会创建新会话，不会修改 transcript，也不会恢复工作区文件。hook 记录失败只会输出 warning，不应该阻塞核心 CLI 恢复流程。
 
 ## MVP 限制
 

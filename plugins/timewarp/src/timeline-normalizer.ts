@@ -1,10 +1,9 @@
 import { asString, isObject, stableStringify, textFromContent, truncate } from "./json.ts";
-import { classifyRisk } from "./risk-classifier.ts";
+import { assessRisk } from "./risk-classifier.ts";
 import type {
   JsonObject,
   ParsedTranscriptLine,
   RawSession,
-  RiskClass,
   Timeline,
   TimelineEvent,
   TimelineKind
@@ -79,7 +78,7 @@ export function normalizeTimeline(session: RawSession): Timeline {
     const kind = classifyKind(type, line.payload);
     const toolName = extractToolName(type, line.payload);
     const callId = asString(line.payload.call_id);
-    const risk = classifyTimelineRisk(type, toolName, line.payload, kind);
+    const riskAssessment = classifyTimelineRisk(type, toolName, line.payload, kind);
     const timelineEvent: TimelineEvent = {
       eventId,
       sessionId: session.sessionId,
@@ -92,7 +91,8 @@ export function normalizeTimeline(session: RawSession): Timeline {
       status: statusFor(type, line.payload),
       timestamp: line.timestamp,
       preview: makePreview(type, line.payload, toolName),
-      risk,
+      risk: riskAssessment.risk,
+      riskReason: riskAssessment.reason,
       rawRef: {
         path: line.path,
         line: line.line
@@ -117,6 +117,7 @@ export function normalizeTimeline(session: RawSession): Timeline {
           call.linkedEventId = eventId;
           timelineEvent.toolName = timelineEvent.toolName || call.toolName;
           timelineEvent.risk = call.risk;
+          timelineEvent.riskReason = `linked result inherits call risk from ${call.eventId}: ${call.riskReason}`;
         }
       }
     } else if (type === "web_search_end") {
@@ -142,7 +143,8 @@ export function normalizeTimeline(session: RawSession): Timeline {
       updatedAt: session.updatedAt,
       cwd: session.cwd,
       cliVersion: session.cliVersion,
-      eventCount: session.eventCount
+      eventCount: session.eventCount,
+      selection: session.selection
     },
     events,
     turns: Array.from(turns.values())
@@ -276,11 +278,14 @@ function classifyTimelineRisk(
   toolName: string | undefined,
   payload: JsonObject,
   kind: TimelineKind
-): RiskClass {
+): ReturnType<typeof assessRisk> {
   if (kind !== "tool_call" && kind !== "tool_result" && kind !== "patch") {
-    return "unknown";
+    return {
+      risk: "unknown",
+      reason: "non-tool transcript event; side-effect risk is not applicable."
+    };
   }
-  return classifyRisk({ eventType, toolName, payload });
+  return assessRisk({ eventType, toolName, payload });
 }
 
 function isToolCallKind(kind: TimelineKind): boolean {
