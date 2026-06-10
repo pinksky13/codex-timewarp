@@ -196,6 +196,31 @@ CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewa
 
 ## Best Practices
 
+### Recovery Loop In Codex
+
+Use Timewarp as an execution-path debugger for the current Codex session:
+
+```mermaid
+flowchart TD
+  A[Ask Codex to use Timewarp] --> B[Show the latest tool timeline]
+  B --> C[Inspect the suspicious tool call or result]
+  C --> D{Is the result wrong or incomplete?}
+  D -- No --> E[Continue from the inspected context]
+  D -- Yes --> F[Write corrected output manually]
+  F --> G[Restart after the corrected event]
+  G --> H[Paste recovery pack into /new or /clear]
+```
+
+Inside Codex, prefer asking for the action directly:
+
+```text
+timewarp show latest tools-only
+timewarp inspect E342
+timewarp restart after E342 with replacement: <corrected result>
+```
+
+This lets Codex execute Timewarp for you: first reveal the current session's task path, then inspect the full tool-call result, then generate a clean-session restart pack from the corrected boundary.
+
 - Prefer `inspect` before recovery. Do not recover from an event ID based only on a short preview.
 - Treat `unknown` and `local_workspace_mutation` risk labels conservatively.
 - Treat network reads such as `curl`, `git fetch`, and package metadata lookups as `unknown` unless inspection proves they are safe to repeat.

@@ -196,6 +196,31 @@ CODEX_HOME=/tmp/timewarp-codex-home codex plugin list --marketplace codex-timewa
 
 ## 最佳实践
 
+### 在 Codex 中的恢复闭环
+
+把 Timewarp 当成当前 Codex session 的执行路径调试器：
+
+```mermaid
+flowchart TD
+  A[让 Codex 使用 Timewarp] --> B[展示最新工具调用时间线]
+  B --> C[检查可疑 tool call 或 tool result]
+  C --> D{结果是否错误或不完整?}
+  D -- 否 --> E[基于检查到的上下文继续]
+  D -- 是 --> F[手动写入修正后的结果]
+  F --> G[从修正事件之后 restart]
+  G --> H[把 recovery pack 粘贴到 /new 或 /clear]
+```
+
+在 Codex 里优先直接提出动作：
+
+```text
+timewarp show latest tools-only
+timewarp inspect E342
+timewarp restart after E342 with replacement: <corrected result>
+```
+
+这样 Codex 会直接替你执行 Timewarp：先查看当前 session 的完整任务执行路径，再检查某个 tool call/result 的完整结果；如果结果不对，手动给出 corrected result，然后从这个修正边界生成干净新会话的 restart pack。
+
 - 恢复前优先用 `inspect` 看详情，不要只根据短 preview 判断。
 - 对 `unknown` 和 `local_workspace_mutation` 风险保持保守。
 - 对 `curl`、`git fetch`、包元数据查询这类网络读取保持 `unknown` 级别，除非检查后确认可以安全重复。
